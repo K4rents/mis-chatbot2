@@ -1,3 +1,4 @@
+import express from "express";
 import axios from "axios";
 import fs from "fs/promises"; 
 
@@ -619,3 +620,4 @@ app.listen(PORT, async () => {
     await cargarMemoria(); 
     console.log(`🤖 Chatbot activo en puerto ${PORT}.`);
 });
+
