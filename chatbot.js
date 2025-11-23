@@ -748,12 +748,3 @@ app.listen(PORT, async () => {
     console.log(`🤖 Chatbot activo en puerto ${PORT}.`);
 });
 
-
-
-
-
-
-
-
-
-ChatGPT puede cometer errores. C
