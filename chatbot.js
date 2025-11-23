@@ -1,3 +1,8 @@
+¡Claro! Aquí tienes el código completo y actualizado, incluyendo las pequeñas mejoras que discutimos para la detección de la dinámica de compra y la leyenda amable del video, para que solo tengas que copiar y pegar.
+
+🤖 Chatbot Completo y Actualizado
+JavaScript
+
 import express from "express";
 import axios from "axios";
 
@@ -110,7 +115,8 @@ Si deseas asegurar tu pedido o hacer un anticipo, puedes usar nuestros datos de 
 
 _Recuerda enviar tu comprobante al chat para que tu pedido avance._`;
 
-const MENSAJE_VIDEO = `Por favor, tómate solo 30 segundos para ver nuestro video de bienvenida, ahí te explico nuestra dinámica: ${VIDEO_BIENVENIDA_URL}`;
+// ✅ Leyenda amable mejorada
+const MENSAJE_VIDEO = `¡Con gusto! Para que todo sea súper claro y rápido, mira este breve video (solo 30 segundos) donde te explicamos paso a paso nuestra dinámica de compra: ${VIDEO_BIENVENIDA_URL}`;
 
 const SALUDO_EXISTENTE = `¡Hola de nuevo! 😊 ¿En qué puedo ayudarte hoy? Aquí está la dinámica: ${VIDEO_BIENVENIDA_URL}`;
 
@@ -186,16 +192,17 @@ async function procesar(body) {
             continue;
         }
 
-        // ---------------------- DINÁMICA ----------------------
+        // ---------------------- DINÁMICA (Proceso de Compra/Pedido) ----------------------
         const buscaDinamica =
             clean.includes("mecanica") || clean.includes("dinamica") ||
             clean.includes("como comprar") || clean.includes("pedido") ||
-            clean.includes("orden") || clean.includes("comprar");
+            clean.includes("orden") || clean.includes("comprar") ||
+            clean.includes("hacer") || clean.includes("proceso"); // <-- Mejora para detección
 
         if (buscaDinamica) {
             memoriaBienvenida.add(bienvenidaKey);
             await delay(PAUSA);
-            await enviarTexto(numero, MENSAJE_VIDEO);
+            await enviarTexto(numero, MENSAJE_VIDEO); // <-- Usa el mensaje amable
             continue;
         }
 
