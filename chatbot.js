@@ -157,17 +157,27 @@ async function procesar(body) {
 
         const bienvenidaKey = `welc_${numero}`;
         
-        // ---------------------- 🎯 DINÁMICA (ALTA PRIORIDAD) ----------------------
-        // ✅ CUBRE: "como hago una compra", "como realizo una compra", "como hago un pedido", etc.
-        const buscaDinamica =
-            clean.includes("mecanica") || clean.includes("dinamica") ||
-            clean.includes("como comprar") || clean.includes("pedido") ||
-            clean.includes("orden") || clean.includes("comprar") ||
+        // ---------------------- 🎯 DINÁMICA (ALTA PRIORIDAD, Detección Infalible) ----------------------
+        // 1. Detección por Frases Clave (la forma más segura y específica)
+        const buscaDinamicaExacta = 
+            clean.includes("como hago una compra") || 
+            clean.includes("como realizo una compra") ||
+            clean.includes("como hago un pedido") ||
+            clean.includes("como realizo un pedido");
+            
+        // 2. Detección por palabras clave (fallback para errores de ortografía)
+        const buscaDinamicaKeywords = 
+            clean.includes("mecanica") || 
+            clean.includes("dinamica") ||
+            clean.includes("comprar") || 
+            clean.includes("pedido") || 
+            clean.includes("orden") || 
             clean.includes("hacer") || 
             clean.includes("realizo") || 
             clean.includes("proceso");
 
-        if (buscaDinamica) {
+
+        if (buscaDinamicaExacta || buscaDinamicaKeywords) {
             memoriaBienvenida.add(bienvenidaKey);
             await delay(PAUSA);
             await enviarTexto(numero, MENSAJE_VIDEO);
