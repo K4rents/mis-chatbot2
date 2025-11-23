@@ -135,7 +135,7 @@ async function enviarTextoWasender(numero, text) {
         console.log(`💬 Mensaje de texto enviado a ${numero}. Respuesta: ${text.substring(0, 50)}...`);
     } catch (error) {
         console.error('❌ Error al enviar mensaje de texto:', error.response?.data || error.message);
-        throw new Error("WASENDER_FAIL"); // Lanza un error para ser capturado por el flujo principal
+        throw new Error("WASENDER_FAIL"); // Lanza un error para ser capturado por el try/catch del flujo principal
     }
 }
 
@@ -165,17 +165,27 @@ async function notificarSlack(numero, mensajeCliente) {
         console.log('✅ Alerta de escalamiento enviada a Slack con enlace wa.me.');
     } catch (error) {
         console.error('❌ Error al notificar Slack:', error.message);
+        throw new Error("SLACK_FAIL"); // Lanza un error para ser capturado por el try/catch del flujo principal
     }
 }
 
 async function enviarBienvenidaCompleta(numero) {
     await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
     
-    await enviarTextoWasender(numero, bienvenidaTextoParte1);
+    // Todas las llamadas internas a enviarTextoWasender deben usar try/catch para estabilidad
+    try {
+        await enviarTextoWasender(numero, bienvenidaTextoParte1);
+    } catch (e) {
+        console.error('⚠️ Fallo en enviar Bienvenida Parte 1:', e.message);
+    }
     
     await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
     
-    await enviarTextoWasender(numero, bienvenidaTextoParte2);
+    try {
+        await enviarTextoWasender(numero, bienvenidaTextoParte2);
+    } catch (e) {
+         console.error('⚠️ Fallo en enviar Bienvenida Parte 2:', e.message);
+    }
     
     // Asegurar que tanto el estado de bienvenida como el de dinámica estén marcados.
     if(!bienvenidaEnviada.has(numero)) {
@@ -301,7 +311,7 @@ async function procesarMensajes(body) {
                                      textoSinTildes.includes('quiero hablar con') ||     
                                      textoSinTildes.includes('asesor') ||
                                      textoSinTildes === 'si' ||
-                                     textoSinTildes.includes('tienda') || 
+                                     textoSinTildes.includes('tienda') || // Incluye tiendas para P0
                                      textoSinTildes.includes('sobre pedido') ||
                                      textoSinTildes.includes('comprobante') || 
                                      textoSinTildes.includes('captura'); 
@@ -332,9 +342,16 @@ async function procesarMensajes(body) {
                                 textoSinTildes.includes('esta bien'); 
             // --- FIN FILTRO
             
-            // --- FILTROS PARA ESCALAMIENTO SUAVE (P0.5 y P0.6)
+            // --- FILTROS PARA ESCALAMIENTO SUAVE (P0.5, P0.6, P0.7)
             const buscaEnvio = textoSinTildes.includes('envio') || textoSinTildes.includes('estafeta') || textoSinTildes.includes('paqueteria');
             const buscaProductoGenerico = palabrasProducto.some(keyword => textoSinTildes.includes(keyword));
+            
+            // V17: FILTRO DE UBICACIÓN
+            const buscaUbicacion = textoSinTildes.includes('donde') || 
+                                   textoSinTildes.includes('bodega') || 
+                                   textoSinTildes.includes('recoger') || 
+                                   textoSinTildes.includes('direccion') || 
+                                   textoSinTildes.includes('ubicacion');
             // --- FIN FILTROS
 
             // --- FILTROS PARA INFORMES (P1.1) Y SALUDO (P1)
@@ -357,16 +374,20 @@ async function procesarMensajes(body) {
             // -------------------------------------------
             if (conversacionEnEscalamiento.has(numero)) {
                 
-                // V15: BYPASS CONDITIONS (Cierre, Producto, Envío, INFO GENÉRICA, SALUDO, DINÁMICA)
-                if (buscaCierre || buscaEnvio || buscaProductoGenerico || (buscaInformesGenerico && !esEspecifico) || esSaludoSimple || esPreguntaInformacional) {
-                    console.log(`⭐ BYPASS P0.2: Cierre/Producto/Envio/Info/Saludo/Dinamica detectado. Cayendo a su prioridad específica.`);
-                    // Permitimos que el flujo continúe sin "continue" para que P0.5/P0.6/P1/P1.1/P1.5/P2 se ejecuten.
+                // V17: BYPASS CONDITIONS (Se añadió 'buscaUbicacion')
+                if (buscaCierre || buscaEnvio || buscaProductoGenerico || buscaUbicacion || (buscaInformesGenerico && !esEspecifico) || esSaludoSimple || esPreguntaInformacional) { 
+                    console.log(`⭐ BYPASS P0.2: Cierre/Producto/Envio/Ubicacion/Info/Saludo/Dinamica detectado. Cayendo a su prioridad específica.`);
+                    // Permitimos que el flujo continúe sin "continue" para que P0.x se ejecuten.
                 } else {
                     // Lógica de BLOQUEO para mensajes repetitivos de venta/info AGRESIVA
                     console.log(`🔒 BLOQUEO DE RESPUESTA: Cliente ${numero} ya en escalamiento.`);
                     
                     // Action 1: Re-notificar Slack en mensajes agresivos repetidos.
-                    await notificarSlack(numero, `REPETICIÓN DE INTENTO DE COMPRA/CONTACTO: "${texto}"`);
+                    try {
+                         await notificarSlack(numero, `REPETICIÓN DE INTENTO DE COMPRA/CONTACTO: "${texto}"`);
+                    } catch (e) {
+                        console.error('⚠️ Fallo en notificar Slack P0.2 Repetición:', e.message);
+                    }
                     
                     // Action 2: Check if the user is looking for payment data.
                     if (buscaReenvioPago) {
@@ -394,7 +415,13 @@ async function procesarMensajes(body) {
 
             if (esTemaCritico) {
                 console.log(`🚨 ESCALANDO CRÍTICO a humano por TEMA SENSIBLE/DEVOLUCIÓN: ${numero}`);
-                await notificarSlack(numero, `TEMA CRÍTICO (Devolución/Cambio): "${texto}"`);
+                
+                try {
+                    await notificarSlack(numero, `TEMA CRÍTICO (Devolución/Cambio): "${texto}"`);
+                } catch (e) {
+                    console.error('⚠️ Fallo en notificar Slack P0.0 Crítico:', e.message);
+                }
+                
                 await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
                 
                 const respuestaCritica = 
@@ -406,6 +433,37 @@ async function procesarMensajes(body) {
                     await enviarTextoWasender(numero, respuestaCritica);
                 } catch (e) {
                     console.error('⚠️ Fallo en enviar mensaje P0.0 Crítico, se continúa el flujo:', e.message);
+                }
+                
+                conversacionEnEscalamiento.set(numero, Date.now()); // Establece el estado de escalamiento
+                if(!bienvenidaEnviada.has(numero)) {
+                    bienvenidaEnviada.set(numero, true);
+                    await guardarMemoria();
+                }
+                continue; 
+            }
+
+            // -------------------------------------------
+            // 🚩 0.7 PRIORIDAD: ESCALAMIENTO SUAVE POR UBICACIÓN/RECOLECCIÓN (SE TRATA COMO COMPRA PARA ESCALAR) 🚩
+            // -------------------------------------------
+            
+            if (buscaUbicacion) {
+                console.log(`🚨 ESCALANDO SUAVE a humano por solicitud de UBICACIÓN/RECOLECCIÓN (P0.7): ${numero}.`);
+                
+                // Alertar a Slack (tolerancia a fallos)
+                try {
+                    await notificarSlack(numero, `PREGUNTA SOBRE UBICACIÓN/RECOLECCIÓN/TIENDA: "${texto}"`);
+                } catch (e) {
+                    console.error('⚠️ Fallo en notificar Slack P0.7 Ubicación:', e.message);
+                }
+                
+                await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
+                
+                // Mensaje (se envía el mensaje de escalamiento completo para asegurar el contacto y el pago)
+                try {
+                    await enviarTextoWasender(numero, mensajeEscalaCompleta);
+                } catch (e) {
+                    console.error('⚠️ Fallo en enviar mensaje P0.7 Ubicación, se continúa el flujo:', e.message);
                 }
                 
                 conversacionEnEscalamiento.set(numero, Date.now()); // Establece el estado de escalamiento
@@ -428,7 +486,13 @@ async function procesarMensajes(body) {
             // Importante: No se dispara si es pregunta INFORMACIONAL (se cae a P2)
             if ((esImagenDePedido || buscaPedidoClaro) && !esPreguntaInformacional) {
                 console.log(`🚨 ESCALANDO a humano por intencion de COMPRA/CONTACTO/SEGMENTACIÓN CLARA (P0) de ${numero}.`);
-                await notificarSlack(numero, `INTENCIÓN DE COMPRA/CONTACTO/SEGMENTACIÓN: "${texto}"`);
+                
+                try {
+                    await notificarSlack(numero, `INTENCIÓN DE COMPRA/CONTACTO/SEGMENTACIÓN: "${texto}"`);
+                } catch (e) {
+                    console.error('⚠️ Fallo en notificar Slack P0 Compra:', e.message);
+                }
+                
                 await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
                 
                 try {
@@ -452,12 +516,16 @@ async function procesarMensajes(body) {
             if (buscaEnvio) {
                 console.log(`🚨 ESCALANDO SUAVE a humano por solicitud de ENVÍO/LOGÍSTICA: ${numero}.`);
                 
-                // V15 FIX: Siempre alertar a Slack al detectar intención de escalamiento, 
-                // ya que el contexto ha cambiado (Envío).
-                await notificarSlack(numero, `PREGUNTA SOBRE ENVÍO/LOGÍSTICA: "${texto}"`);
+                // Alertar a Slack (tolerancia a fallos)
+                try {
+                    await notificarSlack(numero, `PREGUNTA SOBRE ENVÍO/LOGÍSTICA: "${texto}"`);
+                } catch (e) {
+                    console.error('⚠️ Fallo en notificar Slack P0.5 Envío:', e.message);
+                }
                 
                 await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
                 
+                // Mensaje (tolerancia a fallos)
                 try {
                     await enviarTextoWasender(numero, mensajeEnvioEscalaSuave);
                 } catch (e) {
@@ -479,13 +547,16 @@ async function procesarMensajes(body) {
             if (buscaProductoGenerico) {
                 console.log(`🚨 ESCALANDO SUAVE a humano por solicitud de PRODUCTO/TALLA/PRECIO (P0.6): ${numero}.`);
                 
-                // V15 FIX: Siempre alertar a Slack al detectar intención de escalamiento, 
-                // ya que el contexto ha cambiado (Producto/Catálogo).
-                await notificarSlack(numero, `PREGUNTA SOBRE PRODUCTO/TALLA/PRECIO: "${texto}"`);
+                // Alertar a Slack (tolerancia a fallos)
+                try {
+                    await notificarSlack(numero, `PREGUNTA SOBRE PRODUCTO/TALLA/PRECIO: "${texto}"`);
+                } catch (e) {
+                    console.error('⚠️ Fallo en notificar Slack P0.6 Producto:', e.message);
+                }
                 
                 await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
                 
-                // V15 FIX: Añadir try/catch para asegurar que el flujo continúe si el mensaje falla.
+                // Mensaje (tolerancia a fallos)
                 try {
                     await enviarTextoWasender(numero, mensajeProductoEscalaSuave);
                 } catch (e) {
@@ -603,7 +674,13 @@ async function procesarMensajes(body) {
             if (buscaInformesGenerico && esEspecifico) {
                 // SCENARIO A: INFORMACIÓN ESPECÍFICA (Escalada suave de producto)
                 console.log(`🚨 ESCALANDO (P1.1 ESPECÍFICO) a humano por solicitud de INFORMES ESPECÍFICOS: ${numero}.`);
-                await notificarSlack(numero, `PIDE INFORMES ESPECÍFICOS (Producto/Pedido): "${texto}"`);
+                
+                try {
+                    await notificarSlack(numero, `PIDE INFORMES ESPECÍFICOS (Producto/Pedido): "${texto}"`);
+                } catch (e) {
+                    console.error('⚠️ Fallo en notificar Slack P1.1 Específico:', e.message);
+                }
+                
                 await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
                 
                 try {
@@ -664,7 +741,12 @@ async function procesarMensajes(body) {
             
             if (escalarAHumano) {
                 console.log(`🚨 ESCALANDO a humano por solicitud de producto/compra (P4): ${numero}`);
-                await notificarSlack(numero, texto);
+                
+                try {
+                    await notificarSlack(numero, texto);
+                } catch (e) {
+                    console.error('⚠️ Fallo en notificar Slack P4 Escalada:', e.message);
+                }
                 
                 respuesta = mensajeProductoEscalaSuave; 
                 
