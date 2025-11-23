@@ -1,0 +1,17 @@
+{
+  "name": "mi-chatbot",
+  "version": "1.0.0",
+  "description": "Chatbot con WaSenderAPI",
+  "main": "chatbot.js",
+  "scripts": {
+    "start": "node chatbot.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "axios": "^1.6.8",
+    "express": "^4.18.2",
+    "body-parser": "^1.20.2"
+  }
+}
