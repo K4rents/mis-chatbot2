@@ -229,6 +229,11 @@ async function procesarMensajes(body) {
                 `*CLABE:* **044320256058512878**\n` +
                 `*Tarjeta:* **5579209154257585**\n\n` +
                 `_Recuerda enviar tu comprobante al chat para que tu pedido avance._`;
+                
+            // NUEVA CONSTANTE: Mensaje de escalamiento completo (garantiza el pago)
+            const mensajeEscalaCompleta = 
+                `¡Excelente! 🛒 Con gusto te ayudo a finalizar tu compra. Estoy conectando tu conversación con una vendedora experta para confirmar stock, tallas y resolver cualquier duda. Te atenderán en breve. ¡Gracias! 😊\n\n${mensajePago}`;
+                
             const mensajeDinamicaVideo = 
                 `Por favor, tómate solo 30 segundos para ver nuestro video de bienvenida, ahí te explico nuestra dinámica: ${VIDEO_BIENVENIDA_URL}`;
             const mensajeSaludoExistente = `¡Hola, bienvenida de nuevo! 😊 ¿En qué puedo ayudarte hoy? Recuerda que nuestra dinámica de compra está en este video: ${VIDEO_BIENVENIDA_URL}`;
@@ -268,7 +273,7 @@ async function procesarMensajes(body) {
                                      textoSinTildes.includes('para comprar') ||
                                      textoSinTildes.includes('compraria') ||
                                      textoSinTildes.includes('dame el precio') ||
-                                     // CORRECCIÓN FINAL: REMOVIDOS 'pedido' y 'orden' para que preguntas de "cómo" vayan al video (Prioridad 2)
+                                     // Se removió 'pedido' y 'orden' para que preguntas de "cómo" vayan al video (Prioridad 2)
                                      textoSinTildes.includes('comprar') ||
                                      textoSinTildes.includes('envio') || 
                                      textoSinTildes.includes('cuanto') ||
@@ -288,8 +293,8 @@ async function procesarMensajes(body) {
                 await notificarSlack(numero, `INTENCIÓN DE COMPRA CLARA/IMAGEN/ENVÍO/CONTACTO: "${texto}"`);
                 await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
                 
-                const respuestaEscala = `¡Excelente! 🛒 Con gusto te ayudo a finalizar tu compra. Estoy conectando tu conversación con una vendedora experta para confirmar stock, tallas y resolver cualquier duda. Te atenderán en breve. ¡Gracias! 😊\n\n${mensajePago}`;
-                await enviarTextoWasender(numero, respuestaEscala);
+                // CORRECCIÓN: Usar el mensaje completo y estandarizado
+                await enviarTextoWasender(numero, mensajeEscalaCompleta);
                 
                 conversacionEnEscalamiento.set(numero, true);
                 if(!bienvenidaEnviada.has(numero)) {
@@ -331,7 +336,6 @@ async function procesarMensajes(body) {
                 console.log(`[FLOW] Respuesta a pregunta de segmentación detectada de ${numero}.`);
                 await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
                 
-                // Texto genérico para manejar tanto "tienda" como "sobre pedido"
                 const mensajeConfirmacion = 
                     `¡Perfecto! Para darte la mejor atención, lo ideal es escalarte con una *vendedora experta en mayoreo*. Ella te puede dar acceso a catálogos exclusivos y precios especiales. \n\n` +
                     `*¿Gusta que lo escalemos de inmediato o tiene alguna otra pregunta* en la que lo pueda ayudar?`;
@@ -373,7 +377,7 @@ async function procesarMensajes(body) {
                                    textoSinTildes.includes('dinamica') || 
                                    textoSinTildes.includes('como se realiza') ||
                                    textoSinTildes.includes('realizo una compra') ||
-                                   textoSinTildes.includes('como') || // <-- Clave para "Cómo realizó un pedido"
+                                   textoSinTildes.includes('como') || 
                                    textoSinTildes.includes('proceso') || 
                                    textoSinTildes.includes('realizo'); 
                   
@@ -453,13 +457,8 @@ async function procesarMensajes(body) {
                 
                 conversacionEnEscalamiento.set(numero, true);
                 
-                // --- MENSAJE DE ESCALAMIENTO FINAL ---
-                let mensajeEscalaBase = `¡Claro! Permíteme un momento, estoy conectando tu conversación con una vendedora experta. En breve te atenderán personalmente para ayudarte con stock, tallas, y método de pago. ¡Gracias! 😊`;
-                
-                respuesta = mensajeEscalaBase;
-                if (buscaPago) {
-                    respuesta += '\n\n' + mensajePago;
-                }
+                // CORRECCIÓN: Usar el mensaje completo y estandarizado
+                respuesta = mensajeEscalaCompleta; 
 
             } else {
                 // 3. Si no escaló, enviar la respuesta de la IA.
