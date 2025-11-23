@@ -303,7 +303,8 @@ async function procesarMensajes(body) {
             
             const buscaPedidoClaro = textoSinTildes.includes('quiero hacer un pedido') || 
                                      textoSinTildes.includes('quiero realizar un pedido') || 
-                                     textoSinTildes.includes('quiero realizar una compra') || // V21: Added explicit phrase
+                                     textoSinTildes.includes('quiero realizar una compra') || 
+                                     textoSinTildes.includes('voy a realizar una compra') || // V23: Added explicit phrase
                                      textoSinTildes.includes('hacer un pedido') || 
                                      textoSinTildes.includes('realizar un pedido') || 
                                      textoSinTildes.includes('quiero comprar') ||
@@ -613,12 +614,20 @@ async function procesarMensajes(body) {
                 
                 await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
                 
-                // Se envía el mensaje de catálogo específico
+                // 1. Primer intento de mensaje (tolerancia a fallos)
                 try {
                     await enviarTextoWasender(numero, mensajeCatalogoEscalaSuave);
                 } catch (e) {
-                    // Reporte de fallo: el mensaje de catálogo falló
-                    console.error('⚠️ Fallo en enviar mensaje P0.8 Catálogo (WASENDER_FAIL INTERMITENTE). Se continúa el flujo:', e.message);
+                    console.error('⚠️ Fallo en enviar mensaje P0.8 Catálogo (Intento 1).', e.message);
+                }
+                
+                // V23: REDUNDANCIA DEL MENSAJE DE CATÁLOGO (SOLUCIÓN AL FALLO INTERMITENTE)
+                await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
+                try {
+                    console.log("💳 Enviando REDUNDANCIA del mensaje de Catálogo para garantizar entrega.");
+                    await enviarTextoWasender(numero, mensajeCatalogoEscalaSuave);
+                } catch (e) {
+                    console.error('⚠️ Fallo en enviar mensaje P0.8 Catálogo (Intento 2).', e.message);
                 }
                 
                 conversacionEnEscalamiento.set(numero, Date.now()); // Establece el estado de escalamiento
