@@ -16,7 +16,7 @@ const PAUSA = 6000;
 
 // 🔥 URLs que sí usas
 const VIDEO_BIENVENIDA_URL = "https://drive.google.com/file/d/1W90iW4nJy7pqvraA--FJTT_HQQw3h4uJ/view";
-const URL_MECANICA_COMPRA = "https://drive.google.com/file/d/163YfomYIO9JojMvQGy7VUa0EkV1tXKLe/view?usp=sharing"; // URL que no se está usando actualmente
+const URL_MECANICA_COMPRA = "https://drive.google.com/file/d/163YfomYIO9JojMvQGy7VUa0EkV1tXKLe/view?usp=sharing";
 
 // ---------------------- UTILIDADES ----------------------
 function delay(ms) { return new Promise(res => setTimeout(res, ms)); }
@@ -156,7 +156,25 @@ async function procesar(body) {
         const clean = stripAccents(texto.toLowerCase());
 
         const bienvenidaKey = `welc_${numero}`;
+        
+        // ---------------------- 🎯 DINÁMICA (ALTA PRIORIDAD) ----------------------
+        // ✅ Esta condición cubre "como realizo una compra", "como hago una compra"
+        // y "como se realiza un pedido", evitando la escalación.
+        const buscaDinamica =
+            clean.includes("mecanica") || clean.includes("dinamica") ||
+            clean.includes("como comprar") || clean.includes("pedido") ||
+            clean.includes("orden") || clean.includes("comprar") ||
+            clean.includes("hacer") || 
+            clean.includes("realizo") || 
+            clean.includes("proceso");
 
+        if (buscaDinamica) {
+            memoriaBienvenida.add(bienvenidaKey);
+            await delay(PAUSA);
+            await enviarTexto(numero, MENSAJE_VIDEO);
+            continue; // Detiene el flujo y no consulta a la IA
+        }
+        
         // ---------------------- ESCALAMIENTO AUTOMÁTICO POR IMAGEN ----------------------
         if (m.message?.imageMessage && (clean.includes("pedido") || clean.includes("orden") || clean.includes("comprar"))) {
             await notificarSlack(numero, "Imagen/Pedido");
@@ -184,22 +202,6 @@ async function procesar(body) {
             memoriaBienvenida.add(bienvenidaKey);
             await delay(PAUSA);
             await enviarTexto(numero, MENSAJE_PAGO);
-            continue;
-        }
-
-        // ---------------------- DINÁMICA (Proceso de Compra/Pedido) ----------------------
-        const buscaDinamica =
-            clean.includes("mecanica") || clean.includes("dinamica") ||
-            clean.includes("como comprar") || clean.includes("pedido") ||
-            clean.includes("orden") || clean.includes("comprar") ||
-            clean.includes("hacer") || 
-            clean.includes("realizo") || // <--- ¡CORRECCIÓN APLICADA!
-            clean.includes("proceso");
-
-        if (buscaDinamica) {
-            memoriaBienvenida.add(bienvenidaKey);
-            await delay(PAUSA);
-            await enviarTexto(numero, MENSAJE_VIDEO);
             continue;
         }
 
