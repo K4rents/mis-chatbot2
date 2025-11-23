@@ -256,7 +256,7 @@ async function procesarMensajes(body) {
                 
                 await enviarTextoWasender(numero, respuestaCritica);
                 
-                // CORRECCIÓN FINAL: Desbloquear la conversación
+                // Desbloquear la conversación
                 conversacionEnEscalamiento.delete(numero);
                 if(!bienvenidaEnviada.has(numero)) {
                     bienvenidaEnviada.set(numero, true);
@@ -274,14 +274,21 @@ async function procesarMensajes(body) {
                                      textoSinTildes.includes('para comprar') ||
                                      textoSinTildes.includes('compraria') ||
                                      textoSinTildes.includes('dame el precio') ||
-                                     // Se removió 'pedido' y 'orden' para que preguntas de "cómo" vayan al video (Prioridad 2)
+                                     // Temas de Venta Directa
                                      textoSinTildes.includes('comprar') ||
                                      textoSinTildes.includes('envio') || 
                                      textoSinTildes.includes('cuanto') ||
+                                     // Comandos y Solicitudes de Personal
                                      textoSinTildes.includes('contactar a la persona') || 
                                      textoSinTildes.includes('como contacto') ||          
                                      textoSinTildes.includes('quiero hablar con') ||     
-                                     textoSinTildes.includes('dame un asesor');         
+                                     textoSinTildes.includes('dame un asesor') ||
+                                     textoSinTildes.includes('escalame') || 
+                                     textoSinTildes.includes('escalar') ||  
+                                     textoSinTildes.includes('vendedora') ||
+                                     textoSinTildes.includes('vendedor') || 
+                                     textoSinTildes.includes('asesor');     
+                                     
 
 
             const esImagenDePedido = (
@@ -297,7 +304,7 @@ async function procesarMensajes(body) {
                 // Usar el mensaje completo y estandarizado
                 await enviarTextoWasender(numero, mensajeEscalaCompleta);
                 
-                // CORRECCIÓN FINAL: Desbloquear la conversación
+                // Desbloquear la conversación
                 conversacionEnEscalamiento.delete(numero); 
                 if(!bienvenidaEnviada.has(numero)) {
                     bienvenidaEnviada.set(numero, true);
@@ -340,12 +347,11 @@ async function procesarMensajes(body) {
                                 textoSinTildes.includes('esta bien'); 
 
             if (buscaCierre && !conversacionEnEscalamiento.has(numero)) {
-                console.log(`[FLOW] Mensaje de cierre/agradecimiento/acuse de recibo detectado de ${numero}.`);
+                console.log(`[FLOW] Mensaje de cierre/agradecimiento/acuse de recibo detectado de ${numero}. Invitando a ver dinámica.`);
                 await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
                 
-                // MODIFICACIÓN DEL MENSAJE DE CIERRE
-                const mensajeCierre = `Seguimos en línea para lo que necesites. 😊`; 
-                await enviarTextoWasender(numero, mensajeCierre);
+                // AHORA ENVÍA EL VIDEO DE DINÁMICA
+                await enviarTextoWasender(numero, mensajeDinamicaVideo);
                 
                 continue; 
             }
@@ -354,13 +360,11 @@ async function procesarMensajes(body) {
             // 🚩 1. PRIORIDAD: SALUDO SIMPLE DE CLIENTE EXISTENTE (MENSAJE CORTO) 🚩
             // -------------------------------------------
             
-            // La lógica length < 10 captura textos cortos que no fueron atrapados por P1.5
             const esSaludoSimple = textoSinTildes.includes('hola') || 
                                    textoSinTildes.includes('hi') ||
                                    textoSinTildes.includes('buenos dias') ||
                                    textoSinTildes.includes('buenas tardes') ||
-                                   textoSinTildes.includes('buenas') ||
-                                   textoSinTildes.length < 10; 
+                                   textoSinTildes.includes('buenas');
             
             if (esSaludoSimple && bienvenidaEnviada.has(numero) && !conversacionEnEscalamiento.has(numero)) {
                 console.log(`[FLOW] Saludo simple de número EXISTENTE. Enviando saludo recurrente y video.`);
@@ -380,7 +384,7 @@ async function procesarMensajes(body) {
                               textoSinTildes.includes('scotiabank') || textoSinTildes.includes('transferencia') ||
                               textoSinTildes.includes('deposito') || textoSinTildes.includes('cuenta');
             
-            // LÓGICA DE DINÁMICA/VIDEO - Captura preguntas de "cómo" o "proceso" (Ajustes para errores tipográficos)
+            // LÓGICA DE DINÁMICA/VIDEO - Captura preguntas de "cómo" o "proceso" 
             const buscaDinamica = textoSinTildes.includes('mecanica') || 
                                    textoSinTildes.includes('dinamica') || 
                                    textoSinTildes.includes('como se realiza') ||
@@ -388,8 +392,7 @@ async function procesarMensajes(body) {
                                    textoSinTildes.includes('como') || 
                                    textoSinTildes.includes('proceso') || 
                                    textoSinTildes.includes('realizo') ||
-                                   textoSinTildes.includes('hago') ||   
-                                   textoSinTildes.includes('con '); 
+                                   textoSinTildes.includes('hago');
                   
             if (buscaPago || buscaDinamica) {
                 console.log(`[FLOW] Solicitud de Pago/Dinamica/Instrucciones de ${numero}.`);
@@ -468,7 +471,7 @@ async function procesarMensajes(body) {
                 // Usar el mensaje completo y estandarizado
                 respuesta = mensajeEscalaCompleta; 
                 
-                // CORRECCIÓN FINAL: Desbloquear la conversación
+                // Desbloquear la conversación
                 conversacionEnEscalamiento.delete(numero); 
 
             } else {
