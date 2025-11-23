@@ -483,22 +483,15 @@ async function procesarMensajes(body) {
                 
                 await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
                 
-                // 1. Enviar el mensaje de escalamiento COMPLETO (incluye datos de pago)
+                // V27: ¡SOLO SE ENVÍA EL MENSAJE COMPLETO!
                 try {
                     await enviarTextoWasender(numero, mensajeEscalaCompleta);
                 } catch (e) {
                      console.error('⚠️ Fallo en enviar mensaje P0 Completo (Mensaje Largo):', e.message);
                 }
                 
-                // V22: REDUNDANCIA DE DATOS DE PAGO (SOLUCIÓN AL FALLO INTERMITENTE)
-                await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
-                 try {
-                    console.log("💳 Enviando REDUNDANCIA de datos de pago (mensajePago) para garantizar entrega.");
-                    await enviarTextoWasender(numero, mensajePago);
-                } catch (e) {
-                     console.error('⚠️ Fallo en enviar mensaje P0 Redundancia Pago, se continúa el flujo:', e.message);
-                }
-                
+                // *** SE ELIMINÓ LA REDUNDANCIA DE DATOS DE PAGO ***
+
                 conversacionEnEscalamiento.set(numero, Date.now()); // Establece el estado de escalamiento
                 if(!bienvenidaEnviada.has(numero)) {
                     bienvenidaEnviada.set(numero, true);
@@ -617,21 +610,14 @@ async function procesarMensajes(body) {
                 
                 await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
                 
-                // 1. Enviar el mensaje de escalamiento COMPLETO (incluye datos de pago)
+                // V27: ¡SOLO SE ENVÍA EL MENSAJE COMPLETO!
                 try {
                     await enviarTextoWasender(numero, mensajeEscalaCompleta);
                 } catch (e) {
                      console.error('⚠️ Fallo en enviar mensaje P0.8 Completo (Mensaje Largo):', e.message);
                 }
                 
-                // REDUNDANCIA DE DATOS DE PAGO (para garantizar entrega)
-                await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
-                 try {
-                    console.log("💳 Enviando REDUNDANCIA de datos de pago (mensajePago) para garantizar entrega.");
-                    await enviarTextoWasender(numero, mensajePago);
-                } catch (e) {
-                     console.error('⚠️ Fallo en enviar mensaje P0.8 Redundancia Pago, se continúa el flujo:', e.message);
-                }
+                // *** SE ELIMINÓ LA REDUNDANCIA DE DATOS DE PAGO ***
                 
                 conversacionEnEscalamiento.set(numero, Date.now()); // Establece el estado de escalamiento
                 if(!bienvenidaEnviada.has(numero)) {
