@@ -28,10 +28,9 @@ const MEMORY_FILE = 'welcome_memory.json';
 // Control de concurrencia y contexto
 const mensajesProcesados = new Set();
 let bienvenidaEnviada = new Map(); 
-const conversacionEnEscalamiento = new Map(); 
+const conversacionEnEscalamiento = new Map(); // Mapa para controlar si el humano ya fue notificado
 
 // Palabras clave de producto/compra 
-// *** LISTA AJUSTADA: SOLO PRODUCTO/TALLA/STOCK (P0.6) ***
 const palabrasProducto = ['modelo', 'talla', 'precio', 'vestido', 'falda', 'blusa', 'pantalón', 'pantalon', 'ropa', 'artículo', 'articulo', 'catalogo', 'stock']; 
 // Palabras críticas para escalamiento inmediato (Prioridad 0.0)
 const palabrasCriticas = ['devolución', 'devolucion', 'regresar', 'cambio', 'reembolso', 'reembolsar', 'queja', 'garantía', 'garantia']; 
@@ -64,12 +63,17 @@ const mensajeDinamicaVideo =
     `Seguimos en línea para lo que necesites. 😊\n\n` +
     `Por favor, tómate solo 30 segundos para ver nuestro video de bienvenida, ahí te explico nuestra dinámica: ${VIDEO_BIENVENIDA_URL}`;
 
-// MENSAJE DE CIERRE PURO (P1.5) - SOLICITADO POR EL USUARIO
+// MENSAJE DE CIERRE PURO (P1.5)
 const mensajeCierrePuro = 
     `Seguimos en línea para lo que necesites. 😊`;
     
 const mensajeSaludoExistente = 
     `¡Hola, bienvenida de nuevo! 😊 ¿En qué puedo ayudarte hoy? Recuerda que nuestra dinámica de compra está en este video: ${VIDEO_BIENVENIDA_URL}`;
+
+// NUEVO MENSAJE DE BLOQUEO DE REPETICIÓN (P0.2)
+const mensajeEscalamientoBloqueo = 
+    `Nuestra vendedora experta ya fue notificada de tu mensaje y te atenderá de inmediato. ¡Gracias por la confirmación!`;
+
 
 const bienvenidaTextoParte1 = 
     `¡Hola, bienvenida a *Karen's Clothes*! Soy **Paola** y estoy encantada de atenderte. ✨\n\n` +
@@ -261,19 +265,17 @@ async function procesarMensajes(body) {
                 console.log(`✅ Número ya normalizado: ${numero}`);
             }
             // -------------------------------------------
-
+            
             const textoLower = texto.toLowerCase();
             const textoSinTildes = stripAccents(textoLower); 
             
-            // --- Definición de Filtros de Pregunta (NUEVO)
+            // --- Definición de Filtros de Pregunta (P0 y P2)
             const esPreguntaInformacional = textoSinTildes.includes('como se') || 
                                             textoSinTildes.includes('como hago') || 
                                             textoSinTildes.includes('como realizo') || 
                                             textoSinTildes.includes('cual es la dinamica') ||
                                             textoSinTildes.includes('como funciona');
             
-            // --- Definición de P0 (Venta Agresiva) para uso en la lógica
-            // Esta lista es solo para intención clara y NO incluye las frases de 'cómo'.
             const buscaPedidoClaro = textoSinTildes.includes('quiero hacer un pedido') || 
                                      textoSinTildes.includes('quiero realizar un pedido') || 
                                      textoSinTildes.includes('hacer un pedido') || 
@@ -294,10 +296,20 @@ async function procesarMensajes(body) {
                                      textoSinTildes === 'si' ||
                                      textoSinTildes.includes('tienda') || 
                                      textoSinTildes.includes('sobre pedido') ||
-                                     textoSinTildes.includes('comprobante') ||
-                                     textoSinTildes.includes('captura');
+                                     textoSinTildes.includes('comprobante') || // <-- Alto intento de pago
+                                     textoSinTildes.includes('captura'); // <-- Alto intento de pago
             // --- Fin definición P0
             
+            
+            // -------------------------------------------
+            // 🚩 0.2 PRIORIDAD: BLOQUEO DE RESPUESTA REPETITIVA POST-ESCALAMIENTO 🚩
+            // -------------------------------------------
+            if (conversacionEnEscalamiento.has(numero)) {
+                console.log(`🔒 BLOQUEO DE RESPUESTA: Cliente ${numero} ya en escalamiento. Enviando ACK simple.`);
+                await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
+                await enviarTextoWasender(numero, mensajeEscalamientoBloqueo);
+                continue;
+            }
             
             // -------------------------------------------
             // 🚩 0.0 PRIORIDAD MÁXIMA: DEVOLUCIONES / CAMBIOS (CRÍTICO) 🚩
@@ -316,7 +328,7 @@ async function procesarMensajes(body) {
                 
                 await enviarTextoWasender(numero, respuestaCritica);
                 
-                conversacionEnEscalamiento.delete(numero);
+                conversacionEnEscalamiento.set(numero, Date.now()); // Establece el estado de escalamiento
                 if(!bienvenidaEnviada.has(numero)) {
                     bienvenidaEnviada.set(numero, true);
                     await guardarMemoria();
@@ -326,7 +338,6 @@ async function procesarMensajes(body) {
             
             // -------------------------------------------
             // 🚩 0. PRIORIDAD MÁXIMA: ESCALAMIENTO POR PEDIDO CLARO / CONTACTO / IMAGEN (VENTA AGRESIVA) 🚩
-            // *** AHORA EXCLUYE preguntas que empiecen con 'CÓMO' ***
             // -------------------------------------------
             
             const esImagenDePedido = (
@@ -339,10 +350,9 @@ async function procesarMensajes(body) {
                 await notificarSlack(numero, `INTENCIÓN DE COMPRA/CONTACTO/SEGMENTACIÓN: "${texto}"`);
                 await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
                 
-                // Manda mensaje de escalamiento con datos bancarios incluidos (mensajeEscalaCompleta)
                 await enviarTextoWasender(numero, mensajeEscalaCompleta);
                 
-                conversacionEnEscalamiento.delete(numero); 
+                conversacionEnEscalamiento.set(numero, Date.now()); // Establece el estado de escalamiento
                 if(!bienvenidaEnviada.has(numero)) {
                     bienvenidaEnviada.set(numero, true);
                     await guardarMemoria();
@@ -362,11 +372,11 @@ async function procesarMensajes(body) {
                 
                 await enviarTextoWasender(numero, mensajeEnvioEscalaSuave);
                 
+                conversacionEnEscalamiento.set(numero, Date.now()); // Establece el estado de escalamiento
                 if(!bienvenidaEnviada.has(numero)) {
                     bienvenidaEnviada.set(numero, true);
                     await guardarMemoria();
                 }
-                conversacionEnEscalamiento.delete(numero); 
                 continue; 
             }
 
@@ -382,17 +392,16 @@ async function procesarMensajes(body) {
                 
                 await enviarTextoWasender(numero, mensajeProductoEscalaSuave);
                 
+                conversacionEnEscalamiento.set(numero, Date.now()); // Establece el estado de escalamiento
                 if(!bienvenidaEnviada.has(numero)) {
                     bienvenidaEnviada.set(numero, true);
                     await guardarMemoria();
                 }
-                conversacionEnEscalamiento.delete(numero); 
                 continue; 
             }
             
             // -------------------------------------------
             // 🚩 2. PRIORIDAD: MECÁNICA DE COMPRA / PAGO / DINÁMICA (RESPUESTA RÁPIDA - VIDEO/DATOS) 🚩
-            // *** AHORA CAPTURA las preguntas de 'CÓMO' que P0 excluyó ***
             // -------------------------------------------
             
             const buscaPagoDatos = textoSinTildes.includes('scotiabank') || 
@@ -402,7 +411,6 @@ async function procesarMensajes(body) {
                               textoSinTildes.includes('deposito') || 
                               textoSinTildes.includes('cuenta');
             
-            // Incluye el filtro de pregunta general y otras palabras de proceso
             const buscaDinamica = esPreguntaInformacional ||
                                    textoSinTildes.includes('mecanica') || 
                                    textoSinTildes.includes('dinamica') || 
@@ -413,17 +421,14 @@ async function procesarMensajes(body) {
                 console.log(`[FLOW] Solicitud de Pago/Dinamica/Instrucciones (P2) de ${numero}.`);
                 await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
                 
-                // Si la pregunta es solo de pago/datos, envía solo los datos.
                 if (buscaPagoDatos) await enviarTextoWasender(numero, mensajePago);
-                
-                // Si la pregunta es de dinámica/proceso, envía el video.
                 if (buscaDinamica) await enviarTextoWasender(numero, mensajeDinamicaVideo);
                 
                 if(!bienvenidaEnviada.has(numero)) {
                     bienvenidaEnviada.set(numero, true);
                     await guardarMemoria();
                 }
-                conversacionEnEscalamiento.delete(numero); 
+                // NO establece el estado de escalamiento, es solo informativo
                 continue; 
             }
             
@@ -441,12 +446,13 @@ async function procesarMensajes(body) {
                                 textoSinTildes.includes('está bien') || 
                                 textoSinTildes.includes('esta bien'); 
 
-            if (buscaCierre && !conversacionEnEscalamiento.has(numero)) {
+            if (buscaCierre) { // Se quitó el chequeo de escalamiento para permitir agradecimientos post-escalada
                 console.log(`[FLOW] Mensaje de cierre/agradecimiento/acuse de recibo detectado de ${numero}. Enviando cierre simple.`);
                 await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
                 
                 await enviarTextoWasender(numero, mensajeCierrePuro);
                 
+                // NO establece ni borra el estado de escalamiento
                 continue; 
             }
             
@@ -487,11 +493,11 @@ async function procesarMensajes(body) {
                 
                 await enviarTextoWasender(numero, mensajeProductoEscalaSuave);
                 
+                conversacionEnEscalamiento.set(numero, Date.now()); // Establece el estado de escalamiento
                 if(!bienvenidaEnviada.has(numero)) {
                     bienvenidaEnviada.set(numero, true);
                     await guardarMemoria();
                 }
-                conversacionEnEscalamiento.delete(numero); 
                 continue; 
                 
             } else if (buscaInformesGenerico) {
@@ -500,7 +506,7 @@ async function procesarMensajes(body) {
                 
                 await enviarBienvenidaCompleta(numero); 
                 
-                conversacionEnEscalamiento.delete(numero); 
+                // NO establece ni borra el estado de escalamiento
                 continue; 
             }
 
@@ -542,11 +548,11 @@ async function procesarMensajes(body) {
                 
                 respuesta = mensajeProductoEscalaSuave; 
                 
-                conversacionEnEscalamiento.delete(numero); 
-
+                conversacionEnEscalamiento.set(numero, Date.now()); // Establece el estado de escalamiento
+                
             } else {
                 respuesta = respuestaIA;
-                conversacionEnEscalamiento.delete(numero); 
+                // NO establece ni borra el estado de escalamiento
             }
             
             if (respuesta) {
