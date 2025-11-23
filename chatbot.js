@@ -205,6 +205,7 @@ async function procesarMensajes(body) {
             const msgId = msgObj.key?.id;
             if (!msgId) continue;
 
+            // Bloque de persistencia para evitar duplicados
             if (mensajesProcesados.has(msgId)) {
                 continue;
             }
@@ -222,20 +223,18 @@ async function procesarMensajes(body) {
 
 
             // -------------------------------------------
-            // 🚩 0.1 PRIORIDAD: LIMPIEZA CRÍTICA, BLOQUEO DE GRUPOS Y NORMALIZACIÓN 🚩
+            // 🚩 0.1 PRIORIDAD: BLOQUEO DE GRUPOS Y NORMALIZACIÓN 🚩
             // -------------------------------------------
             
-            // Un JID de grupo SIEMPRE termina en '@g.us'. Los individuales terminan en '@s.whatsapp.net'.
+            // Un JID de grupo SIEMPRE termina en '@g.us'.
             if (numeroRaw.endsWith('@g.us')) {
                 console.log(`❌ MENSAJE DE GRUPO DETECTADO Y BLOQUEADO: ${numeroRaw}`);
                 continue; // ⬅️ Detiene el procesamiento de este mensaje
             }
             
-            // ⬅️ CRÍTICO: Normalización SIMPLE (QUITAMOS el sufijo para obtener el número puro)
+            // ⬅️ Normalización SIMPLE (QUITAMOS el sufijo para obtener el número puro)
             let numero = numeroRaw.replace(/@s\.whatsapp\.net$/, '');
             
-            // EL FILTRO DE LONGITUD (> 15) HA SIDO ELIMINADO para asegurar la compatibilidad con TELCEL.
-
             // Re-normalización de 10 dígitos (seguridad para mensajes salientes)
             // Esto asegura que cualquier número de 10 dígitos (local) se convierta a 521XXXXXXXXXX
             numero = numero.replace(/[^0-9]/g, '');
