@@ -60,7 +60,6 @@ const mensajeProductoEscalaSuave =
     `¡Excelente! 👕 Ya te estoy enlazando con nuestra *vendedora experta*. Ella confirmará el *stock* y *talla* o resolverá cualquier otra duda que tengas. ¡Te atenderán de inmediato! 😊`;
 
 // --- MENSAJE ESPECÍFICO PARA CATÁLOGO (P0.8) ---
-// NOTA V25: Este mensaje se mantiene como constante, pero el flujo P0.8 usa ahora mensajeEscalaCompleta y mensajePago
 const mensajeCatalogoEscalaSuave = 
     `¡Sí! 🛍️ Para ver todo nuestro *catálogo completo* y confirmar *stock* de inmediato, ya te estoy enlazando con nuestra vendedora experta. ¡Te atenderán de inmediato! 😊`;
 
@@ -305,7 +304,7 @@ async function procesarMensajes(body) {
             const buscaPedidoClaro = textoSinTildes.includes('quiero hacer un pedido') || 
                                      textoSinTildes.includes('quiero realizar un pedido') || 
                                      textoSinTildes.includes('quiero realizar una compra') || 
-                                     textoSinTildes.includes('voy a realizar una compra') || // V23: Filter added
+                                     textoSinTildes.includes('voy a realizar una compra') || 
                                      textoSinTildes.includes('hacer un pedido') || 
                                      textoSinTildes.includes('realizar un pedido') || 
                                      textoSinTildes.includes('quiero comprar') ||
@@ -369,6 +368,9 @@ async function procesarMensajes(body) {
                                    textoSinTildes.includes('direccion') || 
                                    textoSinTildes.includes('ubicacion') || 
                                    textoSinTildes.includes('guadalajara'); 
+            
+            // V25: FILTRO EXPLÍCITO DE CATÁLOGO (Usado en P0.8 y ahora en P0.2 Bypass)
+            const buscaCatalogoEspecifico = textoSinTildes.includes('catalogo') || textoSinTildes.includes('catalgo'); 
             // --- FIN FILTROS
 
             // --- FILTROS PARA INFORMES (P1.1) Y SALUDO (P1)
@@ -391,9 +393,9 @@ async function procesarMensajes(body) {
             // -------------------------------------------
             if (conversacionEnEscalamiento.has(numero)) {
                 
-                // V17: BYPASS CONDITIONS 
-                if (buscaCierre || buscaEnvio || buscaProductoGenerico || buscaUbicacion || (buscaInformesGenerico && !esEspecifico) || esSaludoSimple || esPreguntaInformacional) { 
-                    console.log(`⭐ BYPASS P0.2: Cierre/Producto/Envio/Ubicacion/Info/Saludo/Dinamica detectado. Cayendo a su prioridad específica.`);
+                // V26: BYPASS CONDITIONS - Añadimos buscaCatalogoEspecifico como protección explícita.
+                if (buscaCierre || buscaEnvio || buscaProductoGenerico || buscaUbicacion || buscaCatalogoEspecifico || (buscaInformesGenerico && !esEspecifico) || esSaludoSimple || esPreguntaInformacional) { 
+                    console.log(`⭐ BYPASS P0.2: Catálogo/Cierre/Producto/Envio/Ubicacion/Info/Saludo/Dinamica detectado. Cayendo a su prioridad específica.`);
                     // Permitimos que el flujo continúe sin "continue" para que P0.x se ejecuten.
                 } else {
                     // Lógica de BLOQUEO para mensajes repetitivos de venta/info AGRESIVA
@@ -601,7 +603,6 @@ async function procesarMensajes(body) {
             // -------------------------------------------
             // 🚩 0.8 PRIORIDAD: ESCALAMIENTO ESPECÍFICO DE CATÁLOGO (¡FORZADO A P0!) 🚩
             // -------------------------------------------
-            const buscaCatalogoEspecifico = textoSinTildes.includes('catalogo') || textoSinTildes.includes('catalgo'); 
             
             if (buscaCatalogoEspecifico && !esPreguntaInformacional) {
                 // AHORA: Tratamos la solicitud de catálogo como una INTENCIÓN DE COMPRA CLARA (P0)
