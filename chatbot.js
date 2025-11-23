@@ -268,8 +268,7 @@ async function procesarMensajes(body) {
                                      textoSinTildes.includes('para comprar') ||
                                      textoSinTildes.includes('compraria') ||
                                      textoSinTildes.includes('dame el precio') ||
-                                     textoSinTildes.includes('pedido') ||
-                                     textoSinTildes.includes('orden') ||
+                                     // CORRECCIÓN FINAL: REMOVIDOS 'pedido' y 'orden' para que preguntas de "cómo" vayan al video (Prioridad 2)
                                      textoSinTildes.includes('comprar') ||
                                      textoSinTildes.includes('envio') || 
                                      textoSinTildes.includes('cuanto') ||
@@ -285,7 +284,7 @@ async function procesarMensajes(body) {
             );
 
             if (esImagenDePedido || buscaPedidoClaro) {
-                console.log(`🚨 ESCALANDO a humano por intencion de PEDIDO/COMPRA/ENVÍO/CONTACTO de ${numero}.`);
+                console.log(`🚨 ESCALANDO a humano por intencion de COMPRA CLARA/ENVÍO/CONTACTO de ${numero}.`);
                 await notificarSlack(numero, `INTENCIÓN DE COMPRA CLARA/IMAGEN/ENVÍO/CONTACTO: "${texto}"`);
                 await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
                 
@@ -332,14 +331,13 @@ async function procesarMensajes(body) {
                 console.log(`[FLOW] Respuesta a pregunta de segmentación detectada de ${numero}.`);
                 await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
                 
-                // TEXTO FINALIZADO PARA MANEJAR AMBOS CASOS (tienda o sobre pedido)
+                // Texto genérico para manejar tanto "tienda" como "sobre pedido"
                 const mensajeConfirmacion = 
                     `¡Perfecto! Para darte la mejor atención, lo ideal es escalarte con una *vendedora experta en mayoreo*. Ella te puede dar acceso a catálogos exclusivos y precios especiales. \n\n` +
                     `*¿Gusta que lo escalemos de inmediato o tiene alguna otra pregunta* en la que lo pueda ayudar?`;
                 
                 await enviarTextoWasender(numero, mensajeConfirmacion);
                 
-                // Permitimos que el mensaje pase a la IA (Prioridad 4)
                 continue; 
             }
             
@@ -362,7 +360,7 @@ async function procesarMensajes(body) {
             }
             
             // -------------------------------------------
-            // 🚩 2. PRIORIDAD: MECÁNICA DE COMPRA / PAGO (RESPUESTA RÁPIDA) 🚩
+            // 🚩 2. PRIORIDAD: MECÁNICA DE COMPRA / PAGO (RESPUESTA RÁPIDA - INCLUYE "CÓMO HAGO UN PEDIDO") 🚩
             // -------------------------------------------
             
             // LÓGICA DE PAGO
@@ -370,17 +368,17 @@ async function procesarMensajes(body) {
                               textoSinTildes.includes('scotiabank') || textoSinTildes.includes('transferencia') ||
                               textoSinTildes.includes('deposito') || textoSinTildes.includes('cuenta');
             
-            // LÓGICA DE DINÁMICA/VIDEO 
+            // LÓGICA DE DINÁMICA/VIDEO - Captura preguntas de "cómo" o "proceso"
             const buscaDinamica = textoSinTildes.includes('mecanica') || 
                                    textoSinTildes.includes('dinamica') || 
                                    textoSinTildes.includes('como se realiza') ||
                                    textoSinTildes.includes('realizo una compra') ||
-                                   textoSinTildes.includes('como') || 
+                                   textoSinTildes.includes('como') || // <-- Clave para "Cómo realizó un pedido"
                                    textoSinTildes.includes('proceso') || 
                                    textoSinTildes.includes('realizo'); 
                   
             if (buscaPago || buscaDinamica) {
-                console.log(`[FLOW] Solicitud de Pago/Dinamica de ${numero}.`);
+                console.log(`[FLOW] Solicitud de Pago/Dinamica/Instrucciones de ${numero}.`);
                 await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
                 
                 if (buscaPago) await enviarTextoWasender(numero, mensajePago);
