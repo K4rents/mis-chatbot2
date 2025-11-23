@@ -29,7 +29,7 @@ const MEMORY_FILE = 'welcome_memory.json';
 const mensajesProcesados = new Set();
 let bienvenidaEnviada = new Map(); 
 const conversacionEnEscalamiento = new Map(); // Mapa para controlar si el humano ya fue notificado (P0.2)
-let videoDinamicaEnviada = new Map(); // Mapa para asegurar que el video P2 solo se envíe una vez.
+let videoDinamicaEnviada = new Map(); // Mapa para asegurar que el video P2 solo se envíe una vez (USADO AHORA SOLO PARA ESTADO DE MEMORIA)
 
 // Palabras clave de producto/compra 
 const palabrasProducto = ['modelo', 'talla', 'precio', 'vestido', 'falda', 'blusa', 'pantalón', 'pantalon', 'ropa', 'artículo', 'articulo', 'catalogo', 'stock']; 
@@ -92,7 +92,7 @@ async function cargarMemoria() {
         const data = await fs.readFile(MEMORY_FILE, 'utf8');
         const parsed = JSON.parse(data);
         bienvenidaEnviada = new Map(parsed.bienvenidaEnviada);
-        // Cargar el nuevo mapa de dinámica de video
+        // Cargar el mapa de dinámica de video
         if (parsed.videoDinamicaEnviada) {
             videoDinamicaEnviada = new Map(parsed.videoDinamicaEnviada);
         }
@@ -447,8 +447,6 @@ async function procesarMensajes(body) {
                                    textoSinTildes.includes('dinamica') || 
                                    textoSinTildes.includes('proceso');
             
-            let mensajeP2Enviado = false; // NUEVO: Flag para rastrear si se envió un mensaje en P2.
-
             if (buscaPagoDatos || buscaDinamica) { 
                 console.log(`[FLOW] Solicitud de Pago/Dinamica/Instrucciones (P2) de ${numero}.`);
                 
@@ -456,15 +454,13 @@ async function procesarMensajes(body) {
                 if (buscaPagoDatos) {
                     await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
                     await enviarTextoWasender(numero, mensajePago);
-                    mensajeP2Enviado = true;
                 }
                 
-                // 2. Send Dynamic Video (only if it hasn't been sent before)
-                if (buscaDinamica && !videoDinamicaEnviada.has(numero)) {
+                // 2. Send Dynamic Video (ALWAYS send if requested, based on user instruction)
+                if (buscaDinamica) { 
                     await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
                     await enviarTextoWasender(numero, mensajeDinamicaVideo);
-                    videoDinamicaEnviada.set(numero, true); // Set the guard
-                    mensajeP2Enviado = true;
+                    videoDinamicaEnviada.set(numero, true); // Mark state for memory/other flows
                 }
                 
                 // Update welcome state
@@ -473,11 +469,8 @@ async function procesarMensajes(body) {
                 }
                 await guardarMemoria();
 
-                // IMPORTANTE: Solo continuamos y bloqueamos la IA si *realmente* enviamos un mensaje en P2.
-                if (mensajeP2Enviado) {
-                    continue; 
-                }
-                // Si no se envió ningún mensaje (porque la dinámica ya se había enviado), el flujo continuará a P4 (IA).
+                // Continuamos para bloquear la IA, ya que siempre enviamos una respuesta de P2.
+                continue; 
             }
             
             // -------------------------------------------
