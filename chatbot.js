@@ -30,11 +30,41 @@ const mensajesProcesados = new Set();
 let bienvenidaEnviada = new Map(); 
 const conversacionEnEscalamiento = new Map(); 
 
-// Palabras clave de producto/compra 
+// Palabras clave de producto/compra (Usadas para detectar "información específica")
 const palabrasProducto = ['modelo', 'talla', 'precio', 'vestido', 'falda', 'blusa', 'pantalón', 'pantalon', 'ropa', 'artículo', 'articulo', 'catalogo', 'stock', 'pedido', 'compra']; 
 // Palabras críticas para escalamiento inmediato (Prioridad 0.0)
 const palabrasCriticas = ['devolución', 'devolucion', 'regresar', 'cambio', 'reembolso', 'reembolsar', 'queja', 'garantía', 'garantia']; 
 
+// --- CONSTANTES DE MENSAJES ---
+const mensajePago = 
+    `*¡ANTICIPO O PAGO RÁPIDO!* 💰\n` +
+    `Si deseas asegurar tu pedido o hacer un anticipo, puedes usar nuestros datos de Scotiabank:\n\n` +
+    `*👤 BENEFICIARIO:* José de Jesús Conchas Rodriguez\n` + 
+    `*🏦 BANCO:* Scotiabank\n` +
+    `*CLABE:* **044320256058512878**\n` +
+    `*Tarjeta:* **5579209154257585**\n\n` +
+    `_Recuerda enviar tu comprobante al chat para que tu pedido avance._`;
+    
+const mensajeEscalaCompleta = 
+    `¡Excelente! 🛒 Con gusto te ayudo a finalizar tu compra. Estoy conectando tu conversación con una vendedora experta para confirmar stock, tallas y resolver cualquier duda. Te atenderán en breve. ¡Gracias! 😊\n\n${mensajePago}`;
+    
+const mensajeDinamicaVideo = 
+    `Por favor, tómate solo 30 segundos para ver nuestro video de bienvenida, ahí te explico nuestra dinámica: ${VIDEO_BIENVENIDA_URL}`;
+    
+const mensajeSaludoExistente = 
+    `¡Hola, bienvenida de nuevo! 😊 ¿En qué puedo ayudarte hoy? Recuerda que nuestra dinámica de compra está en este video: ${VIDEO_BIENVENIDA_URL}`;
+
+const bienvenidaTextoParte1 = 
+    `¡Hola, bienvenida a *Karen's Clothes*! Soy **Paola** y estoy encantada de atenderte. ✨\n\n` +
+    `¿Tienes tienda o te manejas sobre pedido?\n\n` + 
+    `A continuación, te dejo nuestro link de nuestra página oficial: https://www.facebook.com/share/19928ADEfk/\n\n` + 
+    mensajeDinamicaVideo; 
+
+const bienvenidaTextoParte2 = 
+    `¡Realiza tu **primera compra** y llévate un cupón! 🎁\n\n` +
+    `1.-Cupón: Realiza una compra mínima de *$4000 MXN* se brinda el precio de corrida que son 10 pesos menos por prenda del precio de mayoreo\n\n` +
+    `2.-Cupón: Realiza una compra mínima de *$6000 MXN* se brinda el precio de paquete que son 20 pesos menos por prenda del precio de mayoreo`;
+    
 // ----------------------------------------------------
 // 2. SERVICIOS EXTERNOS Y UTILIDADES
 // ----------------------------------------------------
@@ -123,6 +153,28 @@ async function notificarSlack(numero, mensajeCliente) {
         console.error('❌ Error al notificar Slack:', error.message);
     }
 }
+
+/**
+ * Utilidad: Envía el mensaje de Bienvenida Completa (Parte 1 y 2).
+ */
+async function enviarBienvenidaCompleta(numero) {
+    await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
+    
+    // --- MENSAJE DE BIENVENIDA (PRIMER PARTE) ---
+    await enviarTextoWasender(numero, bienvenidaTextoParte1);
+    
+    await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
+    
+    // --- MENSAJE DE OFERTA (SEGUNDA PARTE) ---
+    await enviarTextoWasender(numero, bienvenidaTextoParte2);
+    
+    // Marca como enviado si es la primera vez
+    if(!bienvenidaEnviada.has(numero)) {
+        bienvenidaEnviada.set(numero, true);
+        await guardarMemoria();
+    }
+}
+
 
 async function obtenerRespuestaOpenRouter(mensaje, contexto) {
     try {
@@ -220,24 +272,6 @@ async function procesarMensajes(body) {
             const textoLower = texto.toLowerCase();
             const textoSinTildes = stripAccents(textoLower); 
             
-            // --- CONSTANTES DE MENSAJES ---
-            const mensajePago = 
-                `*¡ANTICIPO O PAGO RÁPIDO!* 💰\n` +
-                `Si deseas asegurar tu pedido o hacer un anticipo, puedes usar nuestros datos de Scotiabank:\n\n` +
-                `*👤 BENEFICIARIO:* José de Jesús Conchas Rodriguez\n` + 
-                `*🏦 BANCO:* Scotiabank\n` +
-                `*CLABE:* **044320256058512878**\n` +
-                `*Tarjeta:* **5579209154257585**\n\n` +
-                `_Recuerda enviar tu comprobante al chat para que tu pedido avance._`;
-                
-            // Mensaje de escalamiento completo (garantiza el pago)
-            const mensajeEscalaCompleta = 
-                `¡Excelente! 🛒 Con gusto te ayudo a finalizar tu compra. Estoy conectando tu conversación con una vendedora experta para confirmar stock, tallas y resolver cualquier duda. Te atenderán en breve. ¡Gracias! 😊\n\n${mensajePago}`;
-                
-            const mensajeDinamicaVideo = 
-                `Por favor, tómate solo 30 segundos para ver nuestro video de bienvenida, ahí te explico nuestra dinámica: ${VIDEO_BIENVENIDA_URL}`;
-            const mensajeSaludoExistente = `¡Hola, bienvenida de nuevo! 😊 ¿En qué puedo ayudarte hoy? Recuerda que nuestra dinámica de compra está en este video: ${VIDEO_BIENVENIDA_URL}`;
-            
             
             // -------------------------------------------
             // 🚩 0.0 PRIORIDAD MÁXIMA: DEVOLUCIONES / CAMBIOS (CRÍTICO) 🚩
@@ -289,7 +323,6 @@ async function procesarMensajes(body) {
                                      textoSinTildes.includes('vendedor') || 
                                      textoSinTildes.includes('asesor') ||
                                      textoSinTildes === 'si' ||
-                                     // NUEVA ADICIÓN DE LA LÓGICA P1.2 (SEGMENTACIÓN)
                                      textoSinTildes.includes('tienda') || 
                                      textoSinTildes.includes('sobre pedido') ||
                                      textoSinTildes.includes('manejo pedido');
@@ -317,9 +350,6 @@ async function procesarMensajes(body) {
                 }
                 continue; 
             }
-            
-            // 🚩 ELIMINADA LA PRIORIDAD 1.2: CONFIRMACIÓN DE SEGMENTACIÓN (Flujo simplificado) 🚩
-            
             
             // -------------------------------------------
             // 🚩 1.5 PRIORIDAD: DESCARTE POR CIERRE O AGRADECIMIENTO 🚩
@@ -363,6 +393,43 @@ async function procesarMensajes(body) {
             }
             
             // -------------------------------------------
+            // 🚩 1.1 PRIORIDAD: INFORMES (BIFURCACIÓN GENÉRICO vs. ESPECÍFICO) 🚩
+            // -------------------------------------------
+            const buscaInformesGenerico = textoSinTildes.includes('informes') || 
+                                          textoSinTildes.includes('informacion') ||
+                                          textoSinTildes.includes('tienes informacion');
+
+            const esEspecifico = palabrasProducto.some(keyword => textoSinTildes.includes(keyword));
+
+            if (buscaInformesGenerico && esEspecifico) {
+                // SCENARIO A: INFORMACIÓN ESPECÍFICA (Escalada: Producto, Precio, Talla, Pedido, etc.)
+                console.log(`🚨 ESCALANDO (P1.1 ESPECÍFICO) a humano por solicitud de INFORMES ESPECÍFICOS: ${numero}.`);
+                await notificarSlack(numero, `PIDE INFORMES ESPECÍFICOS (Producto/Pedido): "${texto}"`);
+                await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
+                
+                // Usar el mensaje completo de Escalada
+                await enviarTextoWasender(numero, mensajeEscalaCompleta);
+                
+                // Marcar como atendido si es nuevo
+                if(!bienvenidaEnviada.has(numero)) {
+                    bienvenidaEnviada.set(numero, true);
+                    await guardarMemoria();
+                }
+                conversacionEnEscalamiento.delete(numero); 
+                continue; 
+                
+            } else if (buscaInformesGenerico) {
+                // SCENARIO B: INFORMACIÓN GENÉRICA (Forzar Bienvenida Completa)
+                console.log(`[FLOW] Solicitud de INFORMES/INFORMACION GENÉRICA detectada de ${numero}. Enviando Bienvenida Completa.`);
+                
+                await enviarBienvenidaCompleta(numero); 
+                
+                conversacionEnEscalamiento.delete(numero); 
+                continue; 
+            }
+
+            
+            // -------------------------------------------
             // 🚩 2. PRIORIDAD: MECÁNICA DE COMPRA / PAGO (RESPUESTA RÁPIDA - INCLUYE "CÓMO HAGO UN PEDIDO") 🚩
             // -------------------------------------------
             
@@ -397,36 +464,14 @@ async function procesarMensajes(body) {
             }
             
             // -------------------------------------------
-            // 🚩 3. PRIORIDAD: LÓGICA DE BIENVENIDA COMPLETA (CLIENTE NUEVO) 🚩
+            // 🚩 3. PRIORIDAD: LÓGICA DE BIENVENIDA COMPLETA (CLIENTE NUEVO - DEFAULT) 🚩
             // -------------------------------------------
             
             if (!bienvenidaEnviada.has(numero)) { 
-                console.log(`[FLOW] Cliente NUEVO. Enviando flujo de bienvenida COMPLETA.`);
+                console.log(`[FLOW] Cliente NUEVO (DEFAULT). Enviando flujo de bienvenida COMPLETA.`);
                 
-                await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
+                await enviarBienvenidaCompleta(numero); 
                 
-                // --- MENSAJE DE BIENVENIDA (PRIMER PARTE) ---
-                const bienvenidaTextoParte1 = 
-                    `¡Hola, bienvenida a *Karen's Clothes*! Soy **Paola** y estoy encantada de atenderte. ✨\n\n` +
-                    `¿Tienes tienda o te manejas sobre pedido?\n\n` + 
-                    `A continuación, te dejo nuestro link de nuestra página oficial: https://www.facebook.com/share/19928ADEfk/\n\n` + 
-                    mensajeDinamicaVideo; 
-
-                await enviarTextoWasender(numero, bienvenidaTextoParte1);
-                
-                await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
-                
-                // --- MENSAJE DE OFERTA (SEGUNDA PARTE) ---
-                const bienvenidaTextoParte2 = 
-                    `¡Realiza tu **primera compra** y llévate un cupón! 🎁\n\n` +
-                    `1.-Cupón: Realiza una compra mínima de *$4000 MXN* se brinda el precio de corrida que son 10 pesos menos por prenda del precio de mayoreo\n\n` +
-                    `2.-Cupón: Realiza una compra mínima de *$6000 MXN* se brinda el precio de paquete que son 20 pesos menos por prenda del precio de mayoreo`;
-                
-                await enviarTextoWasender(numero, bienvenidaTextoParte2);
-                
-                // Registramos la bienvenida en la memoria persistente
-                bienvenidaEnviada.set(numero, true);
-                await guardarMemoria(); 
                 continue;
             }
 
