@@ -319,7 +319,7 @@ async function procesarMensajes(body) {
                                      textoSinTildes.includes('datos');
             // --- FIN FILTRO
             
-            // --- FILTRO PARA CIERRE (P1.5) - MOVEMOS LA DEFINICIÓN AQUÍ PARA ACCESO EN P0.2
+            // --- FILTRO PARA CIERRE (P1.5)
             const buscaCierre = textoSinTildes.includes('gracias') ||
                                 textoSinTildes.includes('bye') ||
                                 textoSinTildes.includes('saludos') ||
@@ -331,12 +331,12 @@ async function procesarMensajes(body) {
                                 textoSinTildes.includes('esta bien'); 
             // --- FIN FILTRO
             
-            // --- FILTROS PARA ESCALAMIENTO SUAVE (P0.5 y P0.6) - MOVEMOS AQUÍ PARA ACCESO EN P0.2
+            // --- FILTROS PARA ESCALAMIENTO SUAVE (P0.5 y P0.6)
             const buscaEnvio = textoSinTildes.includes('envio') || textoSinTildes.includes('estafeta') || textoSinTildes.includes('paqueteria');
             const buscaProductoGenerico = palabrasProducto.some(keyword => textoSinTildes.includes(keyword));
             // --- FIN FILTROS
 
-            // --- FILTROS PARA INFORMES (P1.1) Y SALUDO (P1) - MOVEMOS AQUÍ PARA ACCESO EN P0.2
+            // --- FILTROS PARA INFORMES (P1.1) Y SALUDO (P1)
             const buscaInformesGenerico = textoSinTildes.includes('informes') || 
                                           textoSinTildes.includes('informacion') ||
                                           textoSinTildes.includes('info') || 
@@ -356,10 +356,10 @@ async function procesarMensajes(body) {
             // -------------------------------------------
             if (conversacionEnEscalamiento.has(numero)) {
                 
-                // V13: BYPASS CONDITIONS (Cierre, Producto, Envío, INFO GENÉRICA, SALUDO)
-                if (buscaCierre || buscaEnvio || buscaProductoGenerico || (buscaInformesGenerico && !esEspecifico) || esSaludoSimple) {
-                    console.log(`⭐ BYPASS P0.2: Cierre/Producto/Envio/Info/Saludo detectado. Cayendo a su prioridad específica.`);
-                    // Permitimos que el flujo continúe sin "continue" para que P0.5/P0.6/P1/P1.1/P1.5 se ejecuten.
+                // V14: BYPASS CONDITIONS (Cierre, Producto, Envío, INFO GENÉRICA, SALUDO, DINÁMICA)
+                if (buscaCierre || buscaEnvio || buscaProductoGenerico || (buscaInformesGenerico && !esEspecifico) || esSaludoSimple || esPreguntaInformacional) {
+                    console.log(`⭐ BYPASS P0.2: Cierre/Producto/Envio/Info/Saludo/Dinamica detectado. Cayendo a su prioridad específica.`);
+                    // Permitimos que el flujo continúe sin "continue" para que P0.5/P0.6/P1/P1.1/P1.5/P2 se ejecuten.
                 } else {
                     // Lógica de BLOQUEO para mensajes repetitivos de venta/info AGRESIVA
                     console.log(`🔒 BLOQUEO DE RESPUESTA: Cliente ${numero} ya en escalamiento.`);
@@ -415,6 +415,7 @@ async function procesarMensajes(body) {
                 (textoSinTildes.includes('pedido') || textoSinTildes.includes('orden') || textoSinTildes.includes('comprar') || textoSinTildes.includes('pago')) 
             );
 
+            // Importante: No se dispara si es pregunta INFORMACIONAL (se cae a P2)
             if ((esImagenDePedido || buscaPedidoClaro) && !esPreguntaInformacional) {
                 console.log(`🚨 ESCALANDO a humano por intencion de COMPRA/CONTACTO/SEGMENTACIÓN CLARA (P0) de ${numero}.`);
                 await notificarSlack(numero, `INTENCIÓN DE COMPRA/CONTACTO/SEGMENTACIÓN: "${texto}"`);
@@ -657,4 +658,3 @@ app.listen(PORT, async () => {
     await cargarMemoria(); 
     console.log(`🤖 Chatbot activo en puerto ${PORT}.`);
 });
-
