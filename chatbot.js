@@ -30,6 +30,35 @@ function stripAccents(str) {
 }
 
 // ----------------------------------------------------
+// ⭐ FUNCIÓN QUE TE SOLUCIONÓ EL PROBLEMA (VERSIÓN OFICIAL)
+// ----------------------------------------------------
+function normalizarNumero(numeroRaw) {
+    let numero = numeroRaw.replace(/@s\.whatsapp\.net$/, '').replace(/\D/g, '');
+    console.log("📞 Número crudo:", numero);
+
+    // Telcel manda basura → extraemos los últimos 10 siempre
+    if (numero.length > 10) {
+        numero = "521" + numero.slice(-10);
+        console.log("🔧 Telcel corregido →", numero);
+        return numero;
+    }
+
+    if (numero.length === 10) {
+        numero = "521" + numero;
+        console.log("🔧 Local corregido →", numero);
+        return numero;
+    }
+
+    if (numero.length === 12 && numero.startsWith("521")) {
+        console.log("👍 Correcto:", numero);
+        return numero;
+    }
+
+    console.log("❌ Número inválido:", numeroRaw);
+    return null;
+}
+
+// ----------------------------------------------------
 // 2. SERVICIOS EXTERNOS Y UTILIDADES
 // ----------------------------------------------------
 
@@ -143,23 +172,10 @@ async function procesarMensajes(body) {
         }
 
         // -----------------------------------------------------------
-        // 🔥 NORMALIZACIÓN TELCEL — VERSIÓN COMPLETA
+        // 🔥 AQUI SE AGREGA TU FIX EXACTO (normalizarNumero)
         // -----------------------------------------------------------
-        let numero = numeroRaw.replace(/@s\.whatsapp\.net$/, '').replace(/\D/g, '');
-        console.log("📞 Número crudo:", numero);
-
-        if (numero.length > 10) {
-            numero = "521" + numero.slice(-10);
-            console.log("🔧 Telcel corregido →", numero);
-        } else if (numero.length === 10) {
-            numero = "521" + numero;
-            console.log("🔧 Número local corregido →", numero);
-        } else if (numero.length === 12 && numero.startsWith("521")) {
-            console.log("👍 Número correcto:", numero);
-        } else {
-            console.log("❌ Número inválido ignorado:", numero);
-            continue;
-        }
+        let numero = normalizarNumero(numeroRaw);
+        if (!numero) continue;
 
         // -----------------------------------------------------------
         // 🔥 ANALISIS DE TEXTO
@@ -183,12 +199,8 @@ async function procesarMensajes(body) {
         const mensajeRecurrente =
             `¡Hola de nuevo! 😊 Aquí está nuevamente nuestra dinámica:\n${VIDEO_BIENVENIDA_URL}`;
 
-        // -----------------------------------------------------------
-        // 📌 ESCALAMIENTO POR IMAGEN DE PEDIDO
-        // -----------------------------------------------------------
+        // IMAGEN
         if (msgObj.message.imageMessage) {
-            console.log("📦 Imagen → escalamiento");
-
             await notificarSlack(numero, "Imagen de pedido");
             await enviarTextoWasender(numero,
                 `¡Gracias! Una asesora revisará tu pedido.\n\n${mensajePago}`
@@ -196,9 +208,7 @@ async function procesarMensajes(body) {
             continue;
         }
 
-        // -----------------------------------------------------------
-        // 📌 SALUDOS SIMPLES (CLIENTE EXISTENTE)
-        // -----------------------------------------------------------
+        // SALUDO SIMPLES REPETIDOS
         const esSaludo = textoSinTildes.includes("hola")
             || textoSinTildes.includes("buenas")
             || textoSinTildes.includes("hi");
@@ -208,34 +218,30 @@ async function procesarMensajes(body) {
             continue;
         }
 
-        // -----------------------------------------------------------
-        // 📌 PAGO
-        // -----------------------------------------------------------
-        if (textoSinTildes.includes("pago")
-            || textoSinTildes.includes("anticipo")
-            || textoSinTildes.includes("transferencia")
+        // PAGOS
+        if (
+            textoSinTildes.includes("pago") ||
+            textoSinTildes.includes("anticipo") ||
+            textoSinTildes.includes("transferencia")
         ) {
             await enviarTextoWasender(numero, mensajePago);
             mensajesProcesados.add(bienvenidaKey);
             continue;
         }
 
-        // -----------------------------------------------------------
-        // 📌 DINÁMICA / COMO COMPRAR
-        // -----------------------------------------------------------
-        if (textoSinTildes.includes("mecanica")
-            || textoSinTildes.includes("dinamica")
-            || textoSinTildes.includes("pedido")
-            || textoSinTildes.includes("comprar")
+        // DINÁMICA
+        if (
+            textoSinTildes.includes("mecanica") ||
+            textoSinTildes.includes("dinamica") ||
+            textoSinTildes.includes("pedido") ||
+            textoSinTildes.includes("comprar")
         ) {
             await enviarTextoWasender(numero, mensajeDinamica);
             mensajesProcesados.add(bienvenidaKey);
             continue;
         }
 
-        // -----------------------------------------------------------
-        // 📌 BIENVENIDA COMPLETA (SOLO NUEVOS)
-        // -----------------------------------------------------------
+        // BIENVENIDA NUEVOS
         if (!mensajesProcesados.has(bienvenidaKey)) {
 
             const bienvenida1 =
@@ -256,14 +262,11 @@ async function procesarMensajes(body) {
             continue;
         }
 
-        // -----------------------------------------------------------
-        // 📌 RESPUESTA CON IA / ESCALAMIENTO
-        // -----------------------------------------------------------
+        // IA
         const respuestaIA = await obtenerRespuestaOpenRouter(texto, "asistente de ventas");
 
         if (respuestaIA.includes("COMANDO_ESCALAR")) {
             await notificarSlack(numero, texto);
-
             await enviarTextoWasender(numero,
                 `Estoy canalizando tu mensaje con una vendedora experta 👗✨`
             );
