@@ -58,6 +58,10 @@ const mensajeEnvioEscalaSuave =
 // --- MENSAJE PARA ESCALAMIENTO SUAVE DE PRODUCTO (P0.6) ---
 const mensajeProductoEscalaSuave = 
     `¡Excelente! 👕 Ya te estoy enlazando con nuestra *vendedora experta*. Ella confirmará el *stock* y *talla* o resolverá cualquier otra duda que tengas. ¡Te atenderán de inmediato! 😊`;
+
+// --- V18: MENSAJE PARA ESCALAMIENTO SUAVE DE UBICACIÓN (P0.7) ---
+const mensajeUbicacionEscalaSuave = 
+    `*¡Sí!* 📍 Manejamos nuestra operación desde Guadalajara. Ya te estoy enlazando con nuestra *vendedora experta* para que te dé la *dirección exacta* de la bodega o te agende tu recolección. ¡Te atenderán de inmediato! 😊`;
     
 // MENSAJE DINÁMICA DE VIDEO (P2)
 const mensajeDinamicaVideo = 
@@ -351,7 +355,8 @@ async function procesarMensajes(body) {
                                    textoSinTildes.includes('bodega') || 
                                    textoSinTildes.includes('recoger') || 
                                    textoSinTildes.includes('direccion') || 
-                                   textoSinTildes.includes('ubicacion');
+                                   textoSinTildes.includes('ubicacion') || 
+                                   textoSinTildes.includes('guadalajara'); // V18: Añadido Guadalajara explícitamente.
             // --- FIN FILTROS
 
             // --- FILTROS PARA INFORMES (P1.1) Y SALUDO (P1)
@@ -444,7 +449,7 @@ async function procesarMensajes(body) {
             }
 
             // -------------------------------------------
-            // 🚩 0.7 PRIORIDAD: ESCALAMIENTO SUAVE POR UBICACIÓN/RECOLECCIÓN (SE TRATA COMO COMPRA PARA ESCALAR) 🚩
+            // 🚩 0.7 PRIORIDAD: ESCALAMIENTO SUAVE POR UBICACIÓN/RECOLECCIÓN 🚩
             // -------------------------------------------
             
             if (buscaUbicacion) {
@@ -459,9 +464,9 @@ async function procesarMensajes(body) {
                 
                 await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
                 
-                // Mensaje (se envía el mensaje de escalamiento completo para asegurar el contacto y el pago)
+                // V18: Se envía el mensaje de ubicación específico
                 try {
-                    await enviarTextoWasender(numero, mensajeEscalaCompleta);
+                    await enviarTextoWasender(numero, mensajeUbicacionEscalaSuave);
                 } catch (e) {
                     console.error('⚠️ Fallo en enviar mensaje P0.7 Ubicación, se continúa el flujo:', e.message);
                 }
@@ -548,6 +553,7 @@ async function procesarMensajes(body) {
                 console.log(`🚨 ESCALANDO SUAVE a humano por solicitud de PRODUCTO/TALLA/PRECIO (P0.6): ${numero}.`);
                 
                 // Alertar a Slack (tolerancia a fallos)
+                // V18: ESTE ES EL PUNTO DONDE AMBOS "CATALAGO" DEBEN SER IDÉNTICOS
                 try {
                     await notificarSlack(numero, `PREGUNTA SOBRE PRODUCTO/TALLA/PRECIO: "${texto}"`);
                 } catch (e) {
