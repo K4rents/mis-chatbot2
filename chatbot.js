@@ -31,7 +31,8 @@ let bienvenidaEnviada = new Map();
 const conversacionEnEscalamiento = new Map(); 
 
 // Palabras clave de producto/compra 
-const palabrasProducto = ['modelo', 'talla', 'precio', 'vestido', 'falda', 'blusa', 'pantalón', 'pantalon', 'ropa', 'artículo', 'articulo', 'catalogo', 'stock']; 
+// Incluye 'pedido' y 'compra' para forzar el escalamiento en el fallback (Prioridad 4)
+const palabrasProducto = ['modelo', 'talla', 'precio', 'vestido', 'falda', 'blusa', 'pantalón', 'pantalon', 'ropa', 'artículo', 'articulo', 'catalogo', 'stock', 'pedido', 'compra']; 
 // Palabras críticas para escalamiento inmediato (Prioridad 0.0)
 const palabrasCriticas = ['devolución', 'devolucion', 'regresar', 'cambio', 'reembolso', 'reembolsar', 'queja', 'garantía', 'garantia']; 
 
@@ -230,7 +231,7 @@ async function procesarMensajes(body) {
                 `*Tarjeta:* **5579209154257585**\n\n` +
                 `_Recuerda enviar tu comprobante al chat para que tu pedido avance._`;
                 
-            // NUEVA CONSTANTE: Mensaje de escalamiento completo (garantiza el pago)
+            // Mensaje de escalamiento completo (garantiza el pago)
             const mensajeEscalaCompleta = 
                 `¡Excelente! 🛒 Con gusto te ayudo a finalizar tu compra. Estoy conectando tu conversación con una vendedora experta para confirmar stock, tallas y resolver cualquier duda. Te atenderán en breve. ¡Gracias! 😊\n\n${mensajePago}`;
                 
@@ -293,7 +294,7 @@ async function procesarMensajes(body) {
                 await notificarSlack(numero, `INTENCIÓN DE COMPRA CLARA/IMAGEN/ENVÍO/CONTACTO: "${texto}"`);
                 await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
                 
-                // CORRECCIÓN: Usar el mensaje completo y estandarizado
+                // Usar el mensaje completo y estandarizado
                 await enviarTextoWasender(numero, mensajeEscalaCompleta);
                 
                 conversacionEnEscalamiento.set(numero, true);
@@ -304,26 +305,6 @@ async function procesarMensajes(body) {
                 continue; 
             }
             
-            // -------------------------------------------
-            // 🚩 1. PRIORIDAD: SALUDO SIMPLE DE CLIENTE EXISTENTE (MENSAJE CORTO) 🚩
-            // -------------------------------------------
-            
-            const esSaludoSimple = textoSinTildes.includes('hola') || 
-                                   textoSinTildes.includes('hi') ||
-                                   textoSinTildes.includes('buenos dias') ||
-                                   textoSinTildes.includes('buenas tardes') ||
-                                   textoSinTildes.includes('buenas') ||
-                                   textoSinTildes.length < 10; 
-            
-            if (esSaludoSimple && bienvenidaEnviada.has(numero) && !conversacionEnEscalamiento.has(numero)) {
-                console.log(`[FLOW] Saludo simple de número EXISTENTE. Enviando saludo recurrente y video.`);
-                await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
-                
-                await enviarTextoWasender(numero, mensajeSaludoExistente);
-                
-                continue; 
-            }
-
             // -------------------------------------------
             // 🚩 1.2 PRIORIDAD: CONFIRMACIÓN DE SEGMENTACIÓN (TIENDA/PEDIDO) 🚩
             // -------------------------------------------
@@ -346,7 +327,7 @@ async function procesarMensajes(body) {
             }
             
             // -------------------------------------------
-            // 🚩 1.5 PRIORIDAD: DESCARTE POR CIERRE O AGRADECIMIENTO 🚩
+            // 🚩 1.5 PRIORIDAD: DESCARTE POR CIERRE O AGRADECIMIENTO 🚩 (MOVIDO ARRIBA DE 1)
             // -------------------------------------------
             
             const buscaCierre = textoSinTildes.includes('gracias') ||
@@ -359,6 +340,27 @@ async function procesarMensajes(body) {
                 
                 const mensajeCierre = `¡Un gusto saludarte! Estamos aquí para lo que necesites. Que tengas un excelente día. 😊`;
                 await enviarTextoWasender(numero, mensajeCierre);
+                
+                continue; 
+            }
+            
+            // -------------------------------------------
+            // 🚩 1. PRIORIDAD: SALUDO SIMPLE DE CLIENTE EXISTENTE (MENSAJE CORTO) 🚩
+            // -------------------------------------------
+            
+            // La lógica length < 10 captura 'va' y 'ok'
+            const esSaludoSimple = textoSinTildes.includes('hola') || 
+                                   textoSinTildes.includes('hi') ||
+                                   textoSinTildes.includes('buenos dias') ||
+                                   textoSinTildes.includes('buenas tardes') ||
+                                   textoSinTildes.includes('buenas') ||
+                                   textoSinTildes.length < 10; 
+            
+            if (esSaludoSimple && bienvenidaEnviada.has(numero) && !conversacionEnEscalamiento.has(numero)) {
+                console.log(`[FLOW] Saludo simple de número EXISTENTE. Enviando saludo recurrente y video.`);
+                await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
+                
+                await enviarTextoWasender(numero, mensajeSaludoExistente);
                 
                 continue; 
             }
@@ -379,7 +381,9 @@ async function procesarMensajes(body) {
                                    textoSinTildes.includes('realizo una compra') ||
                                    textoSinTildes.includes('como') || 
                                    textoSinTildes.includes('proceso') || 
-                                   textoSinTildes.includes('realizo'); 
+                                   textoSinTildes.includes('realizo') ||
+                                   textoSinTildes.includes('hago') ||   // <-- AJUSTE AÑADIDO
+                                   textoSinTildes.includes('con '); // <-- AJUSTE AÑADIDO (con espacio)
                   
             if (buscaPago || buscaDinamica) {
                 console.log(`[FLOW] Solicitud de Pago/Dinamica/Instrucciones de ${numero}.`);
@@ -446,7 +450,7 @@ async function procesarMensajes(body) {
             } else {
                 // 2. Refuerzo: Revisar la pregunta por Keywords (modelos, talla, etc.)
                 if (palabrasProducto.some(keyword => textoSinTildes.includes(keyword))) {
-                    console.log(`🚨 ESCALANDO FORZADO: La IA falló, pero la pregunta (${texto}) contiene Keywords de producto.`);
+                    console.log(`🚨 ESCALANDO FORZADO: La IA falló o no dio COMANDO, pero la pregunta (${texto}) contiene Keywords de producto/compra.`);
                     escalarAHumano = true;
                 }
             }
@@ -457,11 +461,11 @@ async function procesarMensajes(body) {
                 
                 conversacionEnEscalamiento.set(numero, true);
                 
-                // CORRECCIÓN: Usar el mensaje completo y estandarizado
+                // Usar el mensaje completo y estandarizado
                 respuesta = mensajeEscalaCompleta; 
 
             } else {
-                // 3. Si no escaló, enviar la respuesta de la IA.
+                // 3. Si no escaló, enviar la respuesta de la IA (solo para saludos o preguntas muy genéricas)
                 respuesta = respuestaIA;
                 conversacionEnEscalamiento.delete(numero); 
             }
