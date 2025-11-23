@@ -49,7 +49,9 @@ const mensajePago =
 const mensajeEscalaCompleta = 
     `¡Excelente! 🛒 Con gusto te ayudo a finalizar tu compra. Estoy conectando tu conversación con una vendedora experta para confirmar stock, tallas y resolver cualquier duda. Te atenderán en breve. ¡Gracias! 😊\n\n${mensajePago}`;
     
+// 🚩 MENSAJE COMBINADO DE REENGANCHE Y DINÁMICA (P1.5) 🚩
 const mensajeDinamicaVideo = 
+    `Seguimos en línea para lo que necesites. 😊\n\n` +
     `Por favor, tómate solo 30 segundos para ver nuestro video de bienvenida, ahí te explico nuestra dinámica: ${VIDEO_BIENVENIDA_URL}`;
     
 const mensajeSaludoExistente = 
@@ -357,7 +359,7 @@ async function procesarMensajes(body) {
             }
             
             // -------------------------------------------
-            // 🚩 1.5 PRIORIDAD: DESCARTE POR CIERRE O AGRADECIMIENTO 🚩
+            // 🚩 1.5 PRIORIDAD: DESCARTE POR CIERRE O AGRADECIMIENTO (Incluye reenganche) 🚩
             // -------------------------------------------
             
             const buscaCierre = textoSinTildes.includes('gracias') ||
@@ -365,14 +367,16 @@ async function procesarMensajes(body) {
                                 textoSinTildes.includes('saludos') ||
                                 textoSinTildes === 'ok' || 
                                 textoSinTildes === 'va' || 
+                                textoSinTildes === 'vale' || // <-- ¡Añadido!
+                                textoSinTildes === 'sale' || // <-- ¡Añadido!
                                 textoSinTildes.includes('está bien') || 
                                 textoSinTildes.includes('esta bien'); 
 
             if (buscaCierre && !conversacionEnEscalamiento.has(numero)) {
-                console.log(`[FLOW] Mensaje de cierre/agradecimiento/acuse de recibo detectado de ${numero}. Invitando a ver dinámica.`);
+                console.log(`[FLOW] Mensaje de cierre/agradecimiento/acuse de recibo detectado de ${numero}. Invitando a ver dinámica con reenganche.`);
                 await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
                 
-                // Envía el video de dinámica
+                // Envía el mensaje combinado (reenganche + video)
                 await enviarTextoWasender(numero, mensajeDinamicaVideo);
                 
                 continue; 
