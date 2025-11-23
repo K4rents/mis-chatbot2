@@ -273,7 +273,6 @@ async function procesarMensajes(body) {
                                      textoSinTildes.includes('comprar') ||
                                      textoSinTildes.includes('envio') || 
                                      textoSinTildes.includes('cuanto') ||
-                                     // --- CORRECCIÓN FINAL: CONTACTO HUMANO ---
                                      textoSinTildes.includes('contactar a la persona') || 
                                      textoSinTildes.includes('como contacto') ||          
                                      textoSinTildes.includes('quiero hablar con') ||     
@@ -322,11 +321,33 @@ async function procesarMensajes(body) {
             }
 
             // -------------------------------------------
+            // 🚩 1.2 PRIORIDAD: CONFIRMACIÓN DE SEGMENTACIÓN (TIENDA/PEDIDO) 🚩
+            // -------------------------------------------
+
+            const buscaTiendaPedido = textoSinTildes.includes('tienda') ||
+                                       textoSinTildes.includes('sobre pedido') ||
+                                       textoSinTildes.includes('manejo pedido');
+
+            if (buscaTiendaPedido && bienvenidaEnviada.has(numero) && !conversacionEnEscalamiento.has(numero)) {
+                console.log(`[FLOW] Respuesta a pregunta de segmentación detectada de ${numero}.`);
+                await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
+                
+                // TEXTO FINALIZADO PARA MANEJAR AMBOS CASOS (tienda o sobre pedido)
+                const mensajeConfirmacion = 
+                    `¡Perfecto! Para darte la mejor atención, lo ideal es escalarte con una *vendedora experta en mayoreo*. Ella te puede dar acceso a catálogos exclusivos y precios especiales. \n\n` +
+                    `*¿Gusta que lo escalemos de inmediato o tiene alguna otra pregunta* en la que lo pueda ayudar?`;
+                
+                await enviarTextoWasender(numero, mensajeConfirmacion);
+                
+                // Permitimos que el mensaje pase a la IA (Prioridad 4)
+                continue; 
+            }
+            
+            // -------------------------------------------
             // 🚩 1.5 PRIORIDAD: DESCARTE POR CIERRE O AGRADECIMIENTO 🚩
             // -------------------------------------------
             
             const buscaCierre = textoSinTildes.includes('gracias') ||
-                                // 'sale' se eliminó para evitar confusión con "¿en cuanto sale?"
                                 textoSinTildes.includes('bye') ||
                                 textoSinTildes.includes('saludos');
 
@@ -385,7 +406,7 @@ async function procesarMensajes(body) {
                 // --- MENSAJE DE BIENVENIDA (PRIMER PARTE) ---
                 const bienvenidaTextoParte1 = 
                     `¡Hola, bienvenida a *Karen's Clothes*! Soy **Paola** y estoy encantada de atenderte. ✨\n\n` +
-                    `¿Tienes tienda o te manejas sobre pedido?\n\n` +
+                    `¿Tienes tienda o te manejas sobre pedido?\n\n` + 
                     `A continuación, te dejo nuestro link de nuestra página oficial: https://www.facebook.com/share/19928ADEfk/\n\n` + 
                     mensajeDinamicaVideo; 
 
