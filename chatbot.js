@@ -10,6 +10,7 @@ app.use(express.json());
 
 const PORT = process.env.PORT || 10000;
 
+// Asegúrese de que estas variables de entorno estén configuradas en su servidor
 const WASENDER_API = process.env.WASENDER_API;
 const WASENDER_API_KEY = process.env.WASENDER_API_KEY;
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
@@ -300,7 +301,7 @@ async function procesarMensajes(body) {
             }
             
             // -------------------------------------------
-            // 🚩 0. PRIORIDAD MÁXIMA: ESCALAMIENTO POR PEDIDO CLARO / CONTACTO / IMAGEN / SEGMENTACIÓN 🚩
+            // 🚩 0. PRIORIDAD MÁXIMA: ESCALAMIENTO POR PEDIDO CLARO / CONTACTO / IMAGEN / CONFIRMACIÓN DE PAGO 🚩
             // -------------------------------------------
             const buscaPedidoClaro = textoSinTildes.includes('quiero hacer un pedido') ||
                                      textoSinTildes.includes('hacer un pedido') ||
@@ -325,13 +326,17 @@ async function procesarMensajes(body) {
                                      textoSinTildes === 'si' ||
                                      textoSinTildes.includes('tienda') || 
                                      textoSinTildes.includes('sobre pedido') ||
-                                     textoSinTildes.includes('manejo pedido');
+                                     textoSinTildes.includes('manejo pedido') ||
+                                     // --- PALABRAS CLAVE CRÍTICAS DE CONFIRMACIÓN DE PAGO ---
+                                     textoSinTildes.includes('comprobante') ||
+                                     textoSinTildes.includes('captura') ||         
+                                     textoSinTildes.includes('transferencia');
                                      
 
 
             const esImagenDePedido = (
                 msgObj.message?.imageMessage && 
-                (textoSinTildes.includes('pedido') || textoSinTildes.includes('orden') || textoSinTildes.includes('comprar'))
+                (textoSinTildes.includes('pedido') || textoSinTildes.includes('orden') || textoSinTildes.includes('comprar') || textoSinTildes.includes('pago')) 
             );
 
             if (esImagenDePedido || buscaPedidoClaro) {
@@ -430,7 +435,7 @@ async function procesarMensajes(body) {
 
             
             // -------------------------------------------
-            // 🚩 2. PRIORIDAD: MECÁNICA DE COMPRA / PAGO (RESPUESTA RÁPIDA - INCLUYE "CÓMO HAGO UN PEDIDO") 🚩
+            // 🚩 2. PRIORIDAD: MECÁNICA DE COMPRA / PAGO (RESPUESTA RÁPIDA - NO ESCALA) 🚩
             // -------------------------------------------
             
             // LÓGICA DE PAGO
