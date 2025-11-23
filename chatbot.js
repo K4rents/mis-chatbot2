@@ -29,7 +29,7 @@ const MEMORY_FILE = 'welcome_memory.json';
 const mensajesProcesados = new Set();
 let bienvenidaEnviada = new Map(); 
 const conversacionEnEscalamiento = new Map(); // Mapa para controlar si el humano ya fue notificado (P0.2)
-let videoDinamicaEnviada = new Map(); // Mapa para asegurar que el video P2 solo se envíe una vez (USADO AHORA SOLO PARA ESTADO DE MEMORIA)
+let videoDinamicaEnviada = new Map(); 
 
 // Palabras clave de producto/compra 
 const palabrasProducto = ['modelo', 'talla', 'precio', 'vestido', 'falda', 'blusa', 'pantalón', 'pantalon', 'ropa', 'artículo', 'articulo', 'catalogo', 'stock']; 
@@ -318,28 +318,48 @@ async function procesarMensajes(body) {
                                      textoSinTildes.includes('pedido') ||
                                      textoSinTildes.includes('datos');
             // --- FIN FILTRO
+            
+            // --- FILTRO PARA CIERRE (P1.5) - MOVEMOS LA DEFINICIÓN AQUÍ PARA ACCESO EN P0.2
+            const buscaCierre = textoSinTildes.includes('gracias') ||
+                                textoSinTildes.includes('bye') ||
+                                textoSinTildes.includes('saludos') ||
+                                textoSinTildes.includes('ok') || 
+                                textoSinTildes.includes('va') || 
+                                textoSinTildes.includes('vale') || 
+                                textoSinTildes.includes('sale') || 
+                                textoSinTildes.includes('está bien') || 
+                                textoSinTildes.includes('esta bien'); 
+            // --- FIN FILTRO
 
             
             // -------------------------------------------
             // 🚩 0.2 PRIORIDAD: BLOQUEO DE RESPUESTA REPETITIVA POST-ESCALAMIENTO (Reenvío de Pago) 🚩
             // -------------------------------------------
             if (conversacionEnEscalamiento.has(numero)) {
-                console.log(`🔒 BLOQUEO DE RESPUESTA: Cliente ${numero} ya en escalamiento.`);
                 
-                // Action 1: Re-notificar Slack en mensajes agresivos repetidos.
-                await notificarSlack(numero, `REPETICIÓN DE INTENTO DE COMPRA/CONTACTO: "${texto}"`);
-                
-                // Action 2: Check if the user is looking for payment data.
-                if (buscaReenvioPago) {
-                    console.log("💳 Sobreescribiendo bloqueo: Re-enviando solo datos de pago (mensajePago).");
-                    await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
-                    await enviarTextoWasender(numero, mensajePago);
+                // V11: Si es una palabra de CIERRE, BYPASS el bloqueo y deja que caiga a P1.5
+                if (buscaCierre) {
+                    console.log(`⭐ BYPASS P0.2: Cierre/Agradecimiento detectado. Cayendo a P1.5.`);
+                    // Continuamos el flujo sin "continue" para que P1.5 se ejecute.
                 } else {
-                    console.log("🤫 Silenciando bot para intervención humana (mensaje no relacionado a pago).");
-                    // No response to avoid annoyance.
+                    // Lógica de BLOQUEO para mensajes repetitivos de venta/info
+                    console.log(`🔒 BLOQUEO DE RESPUESTA: Cliente ${numero} ya en escalamiento.`);
+                    
+                    // Action 1: Re-notificar Slack en mensajes agresivos repetidos.
+                    await notificarSlack(numero, `REPETICIÓN DE INTENTO DE COMPRA/CONTACTO: "${texto}"`);
+                    
+                    // Action 2: Check if the user is looking for payment data.
+                    if (buscaReenvioPago) {
+                        console.log("💳 Sobreescribiendo bloqueo: Re-enviando solo datos de pago (mensajePago).");
+                        await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
+                        await enviarTextoWasender(numero, mensajePago);
+                    } else {
+                        console.log("🤫 Silenciando bot para intervención humana (mensaje no relacionado a pago).");
+                        // No response to avoid annoyance.
+                    }
+                    
+                    continue; // Detiene el flujo aquí si no es una palabra de cierre
                 }
-                
-                continue;
             }
             
             // -------------------------------------------
@@ -469,7 +489,7 @@ async function procesarMensajes(body) {
                 }
                 await guardarMemoria();
 
-                // Continuamos para bloquear la IA, ya que siempre enviamos una respuesta de P2.
+                // Continuamos para bloquear la IA.
                 continue; 
             }
             
@@ -477,16 +497,6 @@ async function procesarMensajes(body) {
             // 🚩 1.5 PRIORIDAD: DESCARTE POR CIERRE O AGRADECIMIENTO 🚩
             // -------------------------------------------
             
-            const buscaCierre = textoSinTildes.includes('gracias') ||
-                                textoSinTildes.includes('bye') ||
-                                textoSinTildes.includes('saludos') ||
-                                textoSinTildes.includes('ok') || 
-                                textoSinTildes.includes('va') || 
-                                textoSinTildes.includes('vale') || 
-                                textoSinTildes.includes('sale') || 
-                                textoSinTildes.includes('está bien') || 
-                                textoSinTildes.includes('esta bien'); 
-
             if (buscaCierre) { 
                 console.log(`[FLOW] Mensaje de cierre/agradecimiento/acuse de recibo detectado de ${numero}. Enviando cierre simple.`);
                 await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
