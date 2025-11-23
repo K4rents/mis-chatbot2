@@ -60,7 +60,7 @@ const mensajeProductoEscalaSuave =
     `¡Excelente! 👕 Ya te estoy enlazando con nuestra *vendedora experta*. Ella confirmará el *stock* y *talla* o resolverá cualquier otra duda que tengas. ¡Te atenderán de inmediato! 😊`;
 
 // --- MENSAJE ESPECÍFICO PARA CATÁLOGO (P0.8) ---
-// NOTA V24: Este mensaje se mantiene como constante, pero el flujo P0.8 usa ahora mensajeProductoEscalaSuave
+// NOTA V25: Este mensaje se mantiene como constante, pero el flujo P0.8 usa ahora mensajeEscalaCompleta y mensajePago
 const mensajeCatalogoEscalaSuave = 
     `¡Sí! 🛍️ Para ver todo nuestro *catálogo completo* y confirmar *stock* de inmediato, ya te estoy enlazando con nuestra vendedora experta. ¡Te atenderán de inmediato! 😊`;
 
@@ -599,37 +599,37 @@ async function procesarMensajes(body) {
             }
             
             // -------------------------------------------
-            // 🚩 0.8 PRIORIDAD: ESCALAMIENTO ESPECÍFICO DE CATÁLOGO (Fix para falla persistente y Mensaje específico) 🚩
+            // 🚩 0.8 PRIORIDAD: ESCALAMIENTO ESPECÍFICO DE CATÁLOGO (¡FORZADO A P0!) 🚩
             // -------------------------------------------
             const buscaCatalogoEspecifico = textoSinTildes.includes('catalogo') || textoSinTildes.includes('catalgo'); 
             
             if (buscaCatalogoEspecifico && !esPreguntaInformacional) {
-                console.log(`🚨 ESCALANDO SUAVE a humano por solicitud forzada de CATÁLOGO (P0.8): ${numero}.`);
+                // AHORA: Tratamos la solicitud de catálogo como una INTENCIÓN DE COMPRA CLARA (P0)
+                console.log(`🚨 ESCALANDO MÁXIMO (FORZADO P0) a humano por solicitud de CATÁLOGO: ${numero}.`);
                 
-                // Alertar a Slack (tolerancia a fallos)
+                // Alertar a Slack 
                 try {
-                    await notificarSlack(numero, `PREGUNTA SOBRE CATÁLOGO (FORZADA): "${texto}"`);
+                    await notificarSlack(numero, `PREGUNTA SOBRE CATÁLOGO (FORZADA A P0): "${texto}"`);
                 } catch (e) {
                     console.error('⚠️ Fallo en notificar Slack P0.8 Catálogo:', e.message);
                 }
                 
                 await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
                 
-                // V24: Usando el mensaje de producto (más estable) en lugar del mensaje de catálogo original que fallaba
-                
-                // 1. Primer intento de mensaje
+                // 1. Enviar el mensaje de escalamiento COMPLETO (incluye datos de pago)
                 try {
-                    await enviarTextoWasender(numero, mensajeProductoEscalaSuave); // <--- CAMBIO CLAVE V24
+                    await enviarTextoWasender(numero, mensajeEscalaCompleta);
                 } catch (e) {
-                    console.error('⚠️ Fallo en enviar mensaje P0.8 Catálogo (Intento 1).', e.message);
+                     console.error('⚠️ Fallo en enviar mensaje P0.8 Completo (Mensaje Largo):', e.message);
                 }
                 
-                // REDUNDANCIA DEL MENSAJE DE PRODUCTO
+                // REDUNDANCIA DE DATOS DE PAGO (para garantizar entrega)
                 await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
-                try {
-                    await enviarTextoWasender(numero, mensajeProductoEscalaSuave); // <--- CAMBIO CLAVE V24
+                 try {
+                    console.log("💳 Enviando REDUNDANCIA de datos de pago (mensajePago) para garantizar entrega.");
+                    await enviarTextoWasender(numero, mensajePago);
                 } catch (e) {
-                    console.error('⚠️ Fallo en enviar mensaje P0.8 Catálogo (Intento 2).', e.message);
+                     console.error('⚠️ Fallo en enviar mensaje P0.8 Redundancia Pago, se continúa el flujo:', e.message);
                 }
                 
                 conversacionEnEscalamiento.set(numero, Date.now()); // Establece el estado de escalamiento
