@@ -1,3 +1,10 @@
+¡Absolutamente! Aquí tiene la versión final y completa del chatbot.
+
+He aplicado la última corrección en el bloque 0.1 PRIORIDAD (eliminando la restricción de longitud) para garantizar la compatibilidad con los números de Telcel, manteniendo el bloqueo de grupos, la lógica de persistencia y el flujo completo de bienvenida y escalamiento.
+
+🤖 Código Completo y Final del Chatbot (Versión Definitiva)
+JavaScript
+
 import express from "express";
 import axios from "axios";
 
@@ -231,14 +238,10 @@ async function procesarMensajes(body) {
                 continue; // ⬅️ Detiene el procesamiento de este mensaje
             }
             
-            // ⬅️ CRÍTICO: Normalización SIMPLE (usando el formato que funciona para Telcel)
+            // ⬅️ CRÍTICO: Normalización SIMPLE (QUITAMOS el sufijo para obtener el número puro)
             let numero = numeroRaw.replace(/@s\.whatsapp\.net$/, '');
             
-            // ⬅️ CRÍTICO: Bloqueo de JID/números excesivamente largos (DEFENSA contra CRASH)
-            if (numero.length > 15) { 
-                console.log(`❌ MENSAJE DE NUMERO EXCESIVAMENTE LARGO DETECTADO Y BLOQUEADO: ${numero}. JID INESPERADO.`);
-                continue; 
-            }
+            // EL FILTRO DE LONGITUD (> 15) HA SIDO ELIMINADO para asegurar la compatibilidad con TELCEL.
 
             // Re-normalización de 10 dígitos (seguridad para mensajes salientes)
             // Esto asegura que cualquier número de 10 dígitos (local) se convierta a 521XXXXXXXXXX
