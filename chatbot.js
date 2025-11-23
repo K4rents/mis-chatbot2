@@ -59,10 +59,6 @@ const mensajeEnvioEscalaSuave =
 const mensajeProductoEscalaSuave = 
     `¡Excelente! 👕 Ya te estoy enlazando con nuestra *vendedora experta*. Ella confirmará el *stock* y *talla* o resolverá cualquier otra duda que tengas. ¡Te atenderán de inmediato! 😊`;
 
-// --- MENSAJE ESPECÍFICO PARA CATÁLOGO (P0.8) ---
-const mensajeCatalogoEscalaSuave = 
-    `¡Sí! 🛍️ Para ver todo nuestro *catálogo completo* y confirmar *stock* de inmediato, ya te estoy enlazando con nuestra vendedora experta. ¡Te atenderán de inmediato! 😊`;
-
 // --- MENSAJE PARA ESCALAMIENTO SUAVE DE UBICACIÓN (P0.9) ---
 const mensajeUbicacionEscalaSuave = 
     `*¡Sí!* 📍 Manejamos nuestra operación desde Guadalajara. Ya te estoy enlazando con nuestra *vendedora experta* para que te dé la *dirección exacta* de la bodega o te agende tu recolección. ¡Te atenderán de inmediato! 😊`;
@@ -289,6 +285,12 @@ async function procesarMensajes(body) {
             } else if (numero.length === 12 && numero.startsWith('521')) {
                 console.log(`✅ Número ya normalizado: ${numero}`);
             }
+
+            // 🚩 V32 FIX: Bloqueo de JID/números excesivamente largos (mayor a 13 dígitos)
+            if (numero.length > 13) {
+                console.log(`❌ MENSAJE DE NUMERO EXCESIVAMENTE LARGO DETECTADO Y BLOQUEADO: ${numero}. JID INESPERADO.`);
+                continue; 
+            }
             // -------------------------------------------
             
             const textoLower = texto.toLowerCase();
@@ -301,7 +303,7 @@ async function procesarMensajes(body) {
                                             textoSinTildes.includes('cual es la dinamica') ||
                                             textoSinTildes.includes('como funciona');
             
-            // FILTRO P0: Intención de compra/pedido CLARA.
+            // FILTRO P0: Intención de compra/pedido CLARA. (V31: Se agregan más faltas)
             const buscaPedidoClaro = textoSinTildes.includes('quiero hacer un pedido') || 
                                      textoSinTildes.includes('quiero realizar un pedido') || 
                                      textoSinTildes.includes('quiero realizar una compra') || 
@@ -316,6 +318,8 @@ async function procesarMensajes(body) {
                                      textoSinTildes.includes('comprar') ||
                                      textoSinTildes.includes('compra') || 
                                      textoSinTildes.includes('pedido') || 
+                                     textoSinTildes.includes('pedio') || // V30 FIX
+                                     textoSinTildes.includes('aser un pedido') || // V31: Falta de ortografía común 
                                      textoSinTildes.includes('cuanto') ||
                                      textoSinTildes.includes('pago') || 
                                      textoSinTildes.includes('pagar') || 
@@ -328,8 +332,8 @@ async function procesarMensajes(body) {
                                      textoSinTildes.includes('captura'); 
             // --- Fin definición P0
             
-            // --- FILTRO PARA REENVÍO DE PAGO EN P0.2 (V28: Solo términos bancarios explícitos)
-            const buscaReenvioPago = textoSinTildes.includes('pago') || // Lo dejamos porque es un término genérico de pago
+            // --- FILTRO PARA REENVÍO DE PAGO EN P0.2 
+            const buscaReenvioPago = textoSinTildes.includes('pago') || 
                                      textoSinTildes.includes('pagar') || 
                                      textoSinTildes.includes('cuenta') || 
                                      textoSinTildes.includes('clabe') || 
@@ -368,8 +372,12 @@ async function procesarMensajes(body) {
                                    textoSinTildes.includes('ubicacion') || 
                                    textoSinTildes.includes('guadalajara'); 
             
-            // V25: FILTRO EXPLÍCITO DE CATÁLOGO (Usado en P0.8 y ahora en P0.2 Bypass)
-            const buscaCatalogoEspecifico = textoSinTildes.includes('catalogo') || textoSinTildes.includes('catalgo'); 
+            // V29: FILTRO EXPLÍCITO DE CATÁLOGO (Unificado y Robustecido)
+            const buscaCatalogoEspecifico = textoSinTildes.includes('catalogo') || 
+                                            textoSinTildes.includes('catalgo') || 
+                                            textoSinTildes.includes('catalagó') || 
+                                            textoSinTildes.includes('lista') || 
+                                            textoSinTildes.includes('catalog'); 
             // --- FIN FILTROS
 
             // --- FILTROS PARA INFORMES (P1.1) Y SALUDO (P1)
@@ -388,46 +396,8 @@ async function procesarMensajes(body) {
             // --- FIN FILTROS
             
             // -------------------------------------------
-            // 🚩 0.2 PRIORIDAD: BLOQUEO DE RESPUESTA REPETITIVA POST-ESCALAMIENTO (Reenvío de Pago) 🚩
-            // -------------------------------------------
-            if (conversacionEnEscalamiento.has(numero)) {
-                
-                // V26: BYPASS CONDITIONS - Añadimos buscaCatalogoEspecifico como protección explícita.
-                if (buscaCierre || buscaEnvio || buscaProductoGenerico || buscaUbicacion || buscaCatalogoEspecifico || (buscaInformesGenerico && !esEspecifico) || esSaludoSimple || esPreguntaInformacional) { 
-                    console.log(`⭐ BYPASS P0.2: Catálogo/Cierre/Producto/Envio/Ubicacion/Info/Saludo/Dinamica detectado. Cayendo a su prioridad específica.`);
-                    // Permitimos que el flujo continúe sin "continue" para que P0.x se ejecuten.
-                } else {
-                    // Lógica de BLOQUEO para mensajes repetitivos de venta/info AGRESIVA
-                    console.log(`🔒 BLOQUEO DE RESPUESTA: Cliente ${numero} ya en escalamiento.`);
-                    
-                    // Action 1: Re-notificar Slack en mensajes agresivos repetidos.
-                    try {
-                         await notificarSlack(numero, `REPETICIÓN DE INTENTO DE COMPRA/CONTACTO: "${texto}"`);
-                    } catch (e) {
-                        console.error('⚠️ Fallo en notificar Slack P0.2 Repetición:', e.message);
-                    }
-                    
-                    // Action 2: Check if the user is looking for payment data.
-                    if (buscaReenvioPago) { // Ojo: buscaReenvioPago ya no contiene "compra/pedido" genéricos.
-                        console.log("💳 Sobreescribiendo bloqueo: Re-enviando solo datos de pago (mensajePago).");
-                        await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
-                        
-                        try {
-                            await enviarTextoWasender(numero, mensajePago);
-                        } catch (e) {
-                             console.error('⚠️ Fallo en enviar mensaje P0.2 Pago, se continúa el flujo:', e.message);
-                        }
-                    } else {
-                        console.log("🤫 Silenciando bot para intervención humana (mensaje no relacionado a pago).");
-                        // No response to avoid annoyance.
-                    }
-                    
-                    continue; // Detiene el flujo aquí si no es una palabra de bypass
-                }
-            }
-            
-            // -------------------------------------------
-            // 🚩 0.0 PRIORIDAD MÁXIMA: DEVOLUCIONES / CAMBIOS (CRÍTICO) 🚩
+            // 🚩 0.0 PRIORIDAD MÁXIMA: DEVOLUCIONES / CAMBIOS (CRÍTICO) -------------------------------------------
+            // (Esta va antes de P0, y antes de la comprobación de bloqueo)
             // -------------------------------------------
             const esTemaCritico = palabrasCriticas.some(keyword => textoSinTildes.includes(keyword));
 
@@ -463,6 +433,7 @@ async function procesarMensajes(body) {
             
             // -------------------------------------------
             // 🚩 0. PRIORIDAD MÁXIMA: ESCALAMIENTO POR PEDIDO CLARO / CONTACTO / IMAGEN (VENTA AGRESIVA) 🚩
+            // (Esta va antes de la comprobación de bloqueo P0.2 para asegurar que el mensaje de pago siempre se envíe si es una intención de compra clara)
             // -------------------------------------------
             
             const esImagenDePedido = (
@@ -496,6 +467,46 @@ async function procesarMensajes(body) {
                 }
                 continue; 
             }
+            
+            // -------------------------------------------
+            // 🚩 0.2 PRIORIDAD: BLOQUEO DE RESPUESTA REPETITIVA POST-ESCALAMIENTO (DESPUÉS de P0) 🚩
+            // -------------------------------------------
+            if (conversacionEnEscalamiento.has(numero)) {
+                
+                // V26: BYPASS CONDITIONS - Permitimos que las prioridades P0.5 a P1.5 se ejecuten.
+                if (buscaCierre || buscaEnvio || buscaProductoGenerico || buscaUbicacion || buscaCatalogoEspecifico || (buscaInformesGenerico && !esEspecifico) || esSaludoSimple || esPreguntaInformacional) { 
+                    console.log(`⭐ BYPASS P0.2: Catálogo/Cierre/Producto/Envio/Ubicacion/Info/Saludo/Dinamica detectado. Cayendo a su prioridad específica.`);
+                    // Permitimos que el flujo continúe sin "continue" para que P0.x se ejecuten.
+                } else {
+                    // Lógica de BLOQUEO para mensajes repetitivos de venta/info AGRESIVA
+                    console.log(`🔒 BLOQUEO DE RESPUESTA: Cliente ${numero} ya en escalamiento.`);
+                    
+                    // Action 1: Re-notificar Slack en mensajes agresivos repetidos.
+                    try {
+                         await notificarSlack(numero, `REPETICIÓN DE INTENTO DE COMPRA/CONTACTO: "${texto}"`);
+                    } catch (e) {
+                        console.error('⚠️ Fallo en notificar Slack P0.2 Repetición:', e.message);
+                    }
+                    
+                    // Action 2: Check if the user is looking for payment data.
+                    if (buscaReenvioPago) { 
+                        console.log("💳 Sobreescribiendo bloqueo: Re-enviando solo datos de pago (mensajePago).");
+                        await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
+                        
+                        try {
+                            await enviarTextoWasender(numero, mensajePago);
+                        } catch (e) {
+                             console.error('⚠️ Fallo en enviar mensaje P0.2 Pago, se continúa el flujo:', e.message);
+                        }
+                    } else {
+                        console.log("🤫 Silenciando bot para intervención humana (mensaje no relacionado a pago).");
+                        // No response to avoid annoyance.
+                    }
+                    
+                    continue; // Detiene el flujo aquí si no es una palabra de bypass
+                }
+            }
+            
             
             // -------------------------------------------
             // 🚩 0.5 PRIORIDAD: ESCALAMIENTO SUAVE POR ENVÍO (SIN DINERO) 🚩
