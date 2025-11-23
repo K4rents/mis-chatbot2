@@ -32,7 +32,6 @@ const conversacionEnEscalamiento = new Map(); // Mapa para controlar si el human
 let videoDinamicaEnviada = new Map(); 
 
 // Palabras clave de producto/compra 
-// V20: Added 'catalgo' (typo) for robustness
 const palabrasProducto = ['modelo', 'talla', 'precio', 'vestido', 'falda', 'blusa', 'pantalón', 'pantalon', 'ropa', 'artículo', 'articulo', 'catalogo', 'catalgo', 'stock']; 
 // Palabras críticas para escalamiento inmediato (Prioridad 0.0)
 const palabrasCriticas = ['devolución', 'devolucion', 'regresar', 'cambio', 'reembolso', 'reembolsar', 'queja', 'garantía', 'garantia']; 
@@ -56,15 +55,15 @@ const mensajeEscalaCompleta =
 const mensajeEnvioEscalaSuave = 
     `¡Excelente! 📦 Ya te estoy enlazando con nuestra *vendedora experta*. Ella cotizará el *envío* y confirmará la cobertura. ¡Te atenderán de inmediato! 😊`;
 
-// --- MENSAJE PARA ESCALAMIENTO SUAVE DE PRODUCTO (P0.6) ---
+// --- MENSAJE PARA ESCALAMIENTO SUAVE DE PRODUCTO (P0.6 y P0.7) ---
 const mensajeProductoEscalaSuave = 
     `¡Excelente! 👕 Ya te estoy enlazando con nuestra *vendedora experta*. Ella confirmará el *stock* y *talla* o resolverá cualquier otra duda que tengas. ¡Te atenderán de inmediato! 😊`;
 
-// --- V20: MENSAJE ESPECÍFICO PARA CATÁLOGO (P0.8) ---
+// --- MENSAJE ESPECÍFICO PARA CATÁLOGO (P0.8) ---
 const mensajeCatalogoEscalaSuave = 
     `¡Sí! 🛍️ Para ver todo nuestro *catálogo completo* y confirmar *stock* de inmediato, ya te estoy enlazando con nuestra vendedora experta. ¡Te atenderán de inmediato! 😊`;
 
-// --- MENSAJE PARA ESCALAMIENTO SUAVE DE UBICACIÓN (P0.7) ---
+// --- MENSAJE PARA ESCALAMIENTO SUAVE DE UBICACIÓN (P0.9) ---
 const mensajeUbicacionEscalaSuave = 
     `*¡Sí!* 📍 Manejamos nuestra operación desde Guadalajara. Ya te estoy enlazando con nuestra *vendedora experta* para que te dé la *dirección exacta* de la bodega o te agende tu recolección. ¡Te atenderán de inmediato! 😊`;
     
@@ -303,7 +302,7 @@ async function procesarMensajes(body) {
                                             textoSinTildes.includes('como funciona');
             
             const buscaPedidoClaro = textoSinTildes.includes('quiero hacer un pedido') || 
-                                     textoSinTildes.includes('quiero realizar un pedido') || 
+                                     textoSinTildes.includes('quiero realizar un pedido') || // V21: Added explicit phrase
                                      textoSinTildes.includes('hacer un pedido') || 
                                      textoSinTildes.includes('realizar un pedido') || 
                                      textoSinTildes.includes('quiero comprar') ||
@@ -320,7 +319,7 @@ async function procesarMensajes(body) {
                                      textoSinTildes.includes('contactar a la persona') || 
                                      textoSinTildes.includes('quiero hablar con') ||     
                                      textoSinTildes.includes('asesor') ||
-                                     textoSinTildes === 'si' ||
+                                     // V21: textoSinTildes === 'si' REMOVED from P0
                                      textoSinTildes.includes('tienda') || 
                                      textoSinTildes.includes('sobre pedido') ||
                                      textoSinTildes.includes('comprobante') || 
@@ -354,11 +353,14 @@ async function procesarMensajes(body) {
                                 textoSinTildes.includes('esta bien'); 
             // --- FIN FILTRO
             
-            // --- FILTROS PARA ESCALAMIENTO SUAVE (P0.5, P0.6, P0.7)
+            // --- FILTROS PARA ESCALAMIENTO SUAVE (P0.5, P0.6, P0.7, P0.8, P0.9)
             const buscaEnvio = textoSinTildes.includes('envio') || textoSinTildes.includes('estafeta') || textoSinTildes.includes('paqueteria');
             const buscaProductoGenerico = palabrasProducto.some(keyword => textoSinTildes.includes(keyword));
             
-            // V17: FILTRO DE UBICACIÓN
+            // V21: FILTRO DE 'SI'
+            const buscaSi = textoSinTildes === 'si';
+
+            // V21: FILTRO DE UBICACIÓN (Ahora P0.9)
             const buscaUbicacion = textoSinTildes.includes('donde') || 
                                    textoSinTildes.includes('bodega') || 
                                    textoSinTildes.includes('recoger') || 
@@ -446,69 +448,6 @@ async function procesarMensajes(body) {
                     await enviarTextoWasender(numero, respuestaCritica);
                 } catch (e) {
                     console.error('⚠️ Fallo en enviar mensaje P0.0 Crítico, se continúa el flujo:', e.message);
-                }
-                
-                conversacionEnEscalamiento.set(numero, Date.now()); // Establece el estado de escalamiento
-                if(!bienvenidaEnviada.has(numero)) {
-                    bienvenidaEnviada.set(numero, true);
-                    await guardarMemoria();
-                }
-                continue; 
-            }
-            
-            // -------------------------------------------
-            // 🚩 0.8 PRIORIDAD: ESCALAMIENTO ESPECÍFICO DE CATÁLOGO (Fix para falla persistente y Mensaje específico) 🚩
-            // -------------------------------------------
-            const buscaCatalogoEspecifico = textoSinTildes.includes('catalogo') || textoSinTildes.includes('catalgo'); // V20: Includes typo
-            
-            if (buscaCatalogoEspecifico && !esPreguntaInformacional) {
-                console.log(`🚨 ESCALANDO SUAVE a humano por solicitud forzada de CATÁLOGO (P0.8): ${numero}.`);
-                
-                // Alertar a Slack (tolerancia a fallos)
-                try {
-                    await notificarSlack(numero, `PREGUNTA SOBRE CATÁLOGO (FORZADA): "${texto}"`);
-                } catch (e) {
-                    console.error('⚠️ Fallo en notificar Slack P0.8 Catálogo:', e.message);
-                }
-                
-                await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
-                
-                // V20: Se envía el mensaje de catálogo específico
-                try {
-                    await enviarTextoWasender(numero, mensajeCatalogoEscalaSuave);
-                } catch (e) {
-                    console.error('⚠️ Fallo en enviar mensaje P0.8 Catálogo, se continúa el flujo:', e.message);
-                }
-                
-                conversacionEnEscalamiento.set(numero, Date.now()); // Establece el estado de escalamiento
-                if(!bienvenidaEnviada.has(numero)) {
-                    bienvenidaEnviada.set(numero, true);
-                    await guardarMemoria();
-                }
-                continue; 
-            }
-
-            // -------------------------------------------
-            // 🚩 0.7 PRIORIDAD: ESCALAMIENTO SUAVE POR UBICACIÓN/RECOLECCIÓN 🚩
-            // -------------------------------------------
-            
-            if (buscaUbicacion) {
-                console.log(`🚨 ESCALANDO SUAVE a humano por solicitud de UBICACIÓN/RECOLECCIÓN (P0.7): ${numero}.`);
-                
-                // Alertar a Slack (tolerancia a fallos)
-                try {
-                    await notificarSlack(numero, `PREGUNTA SOBRE UBICACIÓN/RECOLECCIÓN/TIENDA: "${texto}"`);
-                } catch (e) {
-                    console.error('⚠️ Fallo en notificar Slack P0.7 Ubicación:', e.message);
-                }
-                
-                await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
-                
-                // Se envía el mensaje de ubicación específico
-                try {
-                    await enviarTextoWasender(numero, mensajeUbicacionEscalaSuave);
-                } catch (e) {
-                    console.error('⚠️ Fallo en enviar mensaje P0.7 Ubicación, se continúa el flujo:', e.message);
                 }
                 
                 conversacionEnEscalamiento.set(numero, Date.now()); // Establece el estado de escalamiento
@@ -617,6 +556,100 @@ async function procesarMensajes(body) {
             }
             
             // -------------------------------------------
+            // 🚩 0.7 PRIORIDAD: ESCALAMIENTO POR RESPUESTA 'SI' a Pregunta de IA (Soft Escalation) 🚩
+            // -------------------------------------------
+            
+            if (buscaSi) {
+                console.log(`🚨 ESCALANDO SUAVE a humano por respuesta 'SI' (P0.7): ${numero}.`);
+                
+                // Alertar a Slack (tolerancia a fallos)
+                try {
+                    await notificarSlack(numero, `RESPUESTA 'SI' a pregunta de IA (Soft Escalation): "${texto}"`);
+                } catch (e) {
+                    console.error('⚠️ Fallo en notificar Slack P0.7 Si:', e.message);
+                }
+                
+                await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
+                
+                // Mensaje (tolerancia a fallos)
+                try {
+                    await enviarTextoWasender(numero, mensajeProductoEscalaSuave);
+                } catch (e) {
+                    console.error('⚠️ Fallo en enviar mensaje P0.7 Si, se continúa el flujo:', e.message);
+                }
+                
+                conversacionEnEscalamiento.set(numero, Date.now()); // Establece el estado de escalamiento
+                if(!bienvenidaEnviada.has(numero)) {
+                    bienvenidaEnviada.set(numero, true);
+                    await guardarMemoria();
+                }
+                continue; 
+            }
+            
+            // -------------------------------------------
+            // 🚩 0.8 PRIORIDAD: ESCALAMIENTO ESPECÍFICO DE CATÁLOGO (Fix para falla persistente y Mensaje específico) 🚩
+            // -------------------------------------------
+            const buscaCatalogoEspecifico = textoSinTildes.includes('catalogo') || textoSinTildes.includes('catalgo'); 
+            
+            if (buscaCatalogoEspecifico && !esPreguntaInformacional) {
+                console.log(`🚨 ESCALANDO SUAVE a humano por solicitud forzada de CATÁLOGO (P0.8): ${numero}.`);
+                
+                // Alertar a Slack (tolerancia a fallos)
+                try {
+                    await notificarSlack(numero, `PREGUNTA SOBRE CATÁLOGO (FORZADA): "${texto}"`);
+                } catch (e) {
+                    console.error('⚠️ Fallo en notificar Slack P0.8 Catálogo:', e.message);
+                }
+                
+                await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
+                
+                // Se envía el mensaje de catálogo específico
+                try {
+                    await enviarTextoWasender(numero, mensajeCatalogoEscalaSuave);
+                } catch (e) {
+                    console.error('⚠️ Fallo en enviar mensaje P0.8 Catálogo, se continúa el flujo:', e.message);
+                }
+                
+                conversacionEnEscalamiento.set(numero, Date.now()); // Establece el estado de escalamiento
+                if(!bienvenidaEnviada.has(numero)) {
+                    bienvenidaEnviada.set(numero, true);
+                    await guardarMemoria();
+                }
+                continue; 
+            }
+            
+            // -------------------------------------------
+            // 🚩 0.9 PRIORIDAD: ESCALAMIENTO SUAVE POR UBICACIÓN/RECOLECCIÓN 🚩
+            // -------------------------------------------
+            
+            if (buscaUbicacion) {
+                console.log(`🚨 ESCALANDO SUAVE a humano por solicitud de UBICACIÓN/RECOLECCIÓN (P0.9): ${numero}.`);
+                
+                // Alertar a Slack (tolerancia a fallos)
+                try {
+                    await notificarSlack(numero, `PREGUNTA SOBRE UBICACIÓN/RECOLECCIÓN/TIENDA: "${texto}"`);
+                } catch (e) {
+                    console.error('⚠️ Fallo en notificar Slack P0.9 Ubicación:', e.message);
+                }
+                
+                await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
+                
+                // Se envía el mensaje de ubicación específico
+                try {
+                    await enviarTextoWasender(numero, mensajeUbicacionEscalaSuave);
+                } catch (e) {
+                    console.error('⚠️ Fallo en enviar mensaje P0.9 Ubicación, se continúa el flujo:', e.message);
+                }
+                
+                conversacionEnEscalamiento.set(numero, Date.now()); // Establece el estado de escalamiento
+                if(!bienvenidaEnviada.has(numero)) {
+                    bienvenidaEnviada.set(numero, true);
+                    await guardarMemoria();
+                }
+                continue; 
+            }
+            
+            // -------------------------------------------
             // 🚩 2. PRIORIDAD: MECÁNICA DE COMPRA / PAGO / DINÁMICA (RESPUESTA RÁPIDA - VIDEO/DATOS) 🚩
             // -------------------------------------------
             
@@ -629,7 +662,6 @@ async function procesarMensajes(body) {
                               textoSinTildes.includes('clabe') ||
                               textoSinTildes.includes('cinta'); 
             
-            // V20: El filtro es PreguntaInformacional ya incluye "Como hago un pedido"
             const buscaDinamica = esPreguntaInformacional ||
                                    textoSinTildes.includes('mecanica') || 
                                    textoSinTildes.includes('dinamica') || 
