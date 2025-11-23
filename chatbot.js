@@ -55,7 +55,7 @@ const mensajeEscalaCompleta =
 const mensajeEnvioEscalaSuave = 
     `¡Excelente! 📦 Ya te estoy enlazando con nuestra *vendedora experta*. Ella cotizará el *envío* y confirmará la cobertura. ¡Te atenderán de inmediato! 😊`;
 
-// --- MENSAJE PARA ESCALAMIENTO SUAVE DE PRODUCTO (P0.6) ---
+// --- MENSAJE PARA ESCALAMIENTO SUAVE DE PRODUCTO (P0.6 y P0.8) ---
 const mensajeProductoEscalaSuave = 
     `¡Excelente! 👕 Ya te estoy enlazando con nuestra *vendedora experta*. Ella confirmará el *stock* y *talla* o resolverá cualquier otra duda que tengas. ¡Te atenderán de inmediato! 😊`;
 
@@ -302,6 +302,7 @@ async function procesarMensajes(body) {
                                      textoSinTildes.includes('hacer un pedido') || 
                                      textoSinTildes.includes('realizar un pedido') || 
                                      textoSinTildes.includes('quiero comprar') ||
+                                     textoSinTildes.includes('quiero compra') || // V19: Added incomplete phrase
                                      textoSinTildes.includes('para comprar') ||
                                      textoSinTildes.includes('compraria') ||
                                      textoSinTildes.includes('dame el precio') ||
@@ -315,7 +316,7 @@ async function procesarMensajes(body) {
                                      textoSinTildes.includes('quiero hablar con') ||     
                                      textoSinTildes.includes('asesor') ||
                                      textoSinTildes === 'si' ||
-                                     textoSinTildes.includes('tienda') || // Incluye tiendas para P0
+                                     textoSinTildes.includes('tienda') || 
                                      textoSinTildes.includes('sobre pedido') ||
                                      textoSinTildes.includes('comprobante') || 
                                      textoSinTildes.includes('captura'); 
@@ -327,11 +328,13 @@ async function procesarMensajes(body) {
                                      textoSinTildes.includes('cuenta') || 
                                      textoSinTildes.includes('clabe') || 
                                      textoSinTildes.includes('transferencia') ||
+                                     textoSinTildes.includes('transfiero') || // V19: Added conjugation
                                      textoSinTildes.includes('deposito') ||
                                      textoSinTildes.includes('comprobante') || 
                                      textoSinTildes.includes('comprar') ||
                                      textoSinTildes.includes('pedido') ||
-                                     textoSinTildes.includes('datos');
+                                     textoSinTildes.includes('datos') ||
+                                     textoSinTildes.includes('cinta'); // V19: Added common typo 'cinta'
             // --- FIN FILTRO
             
             // --- FILTRO PARA CIERRE (P1.5)
@@ -356,7 +359,7 @@ async function procesarMensajes(body) {
                                    textoSinTildes.includes('recoger') || 
                                    textoSinTildes.includes('direccion') || 
                                    textoSinTildes.includes('ubicacion') || 
-                                   textoSinTildes.includes('guadalajara'); // V18: Añadido Guadalajara explícitamente.
+                                   textoSinTildes.includes('guadalajara'); 
             // --- FIN FILTROS
 
             // --- FILTROS PARA INFORMES (P1.1) Y SALUDO (P1)
@@ -379,7 +382,7 @@ async function procesarMensajes(body) {
             // -------------------------------------------
             if (conversacionEnEscalamiento.has(numero)) {
                 
-                // V17: BYPASS CONDITIONS (Se añadió 'buscaUbicacion')
+                // V17: BYPASS CONDITIONS 
                 if (buscaCierre || buscaEnvio || buscaProductoGenerico || buscaUbicacion || (buscaInformesGenerico && !esEspecifico) || esSaludoSimple || esPreguntaInformacional) { 
                     console.log(`⭐ BYPASS P0.2: Cierre/Producto/Envio/Ubicacion/Info/Saludo/Dinamica detectado. Cayendo a su prioridad específica.`);
                     // Permitimos que el flujo continúe sin "continue" para que P0.x se ejecuten.
@@ -447,6 +450,38 @@ async function procesarMensajes(body) {
                 }
                 continue; 
             }
+            
+            // -------------------------------------------
+            // 🚩 0.8 PRIORIDAD: ESCALAMIENTO ESPECÍFICO DE CATÁLOGO (Fix para falla persistente) 🚩
+            // -------------------------------------------
+            const buscaCatalogoEspecifico = textoSinTildes.includes('catalogo');
+            
+            if (buscaCatalogoEspecifico && !esPreguntaInformacional) {
+                console.log(`🚨 ESCALANDO SUAVE a humano por solicitud forzada de CATÁLOGO (P0.8): ${numero}.`);
+                
+                // Alertar a Slack (tolerancia a fallos)
+                try {
+                    await notificarSlack(numero, `PREGUNTA SOBRE CATÁLOGO (FORZADA): "${texto}"`);
+                } catch (e) {
+                    console.error('⚠️ Fallo en notificar Slack P0.8 Catálogo:', e.message);
+                }
+                
+                await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
+                
+                // Mensaje (se envía el mensaje de producto suave)
+                try {
+                    await enviarTextoWasender(numero, mensajeProductoEscalaSuave);
+                } catch (e) {
+                    console.error('⚠️ Fallo en enviar mensaje P0.8 Catálogo, se continúa el flujo:', e.message);
+                }
+                
+                conversacionEnEscalamiento.set(numero, Date.now()); // Establece el estado de escalamiento
+                if(!bienvenidaEnviada.has(numero)) {
+                    bienvenidaEnviada.set(numero, true);
+                    await guardarMemoria();
+                }
+                continue; 
+            }
 
             // -------------------------------------------
             // 🚩 0.7 PRIORIDAD: ESCALAMIENTO SUAVE POR UBICACIÓN/RECOLECCIÓN 🚩
@@ -464,7 +499,7 @@ async function procesarMensajes(body) {
                 
                 await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
                 
-                // V18: Se envía el mensaje de ubicación específico
+                // Se envía el mensaje de ubicación específico
                 try {
                     await enviarTextoWasender(numero, mensajeUbicacionEscalaSuave);
                 } catch (e) {
@@ -553,7 +588,6 @@ async function procesarMensajes(body) {
                 console.log(`🚨 ESCALANDO SUAVE a humano por solicitud de PRODUCTO/TALLA/PRECIO (P0.6): ${numero}.`);
                 
                 // Alertar a Slack (tolerancia a fallos)
-                // V18: ESTE ES EL PUNTO DONDE AMBOS "CATALAGO" DEBEN SER IDÉNTICOS
                 try {
                     await notificarSlack(numero, `PREGUNTA SOBRE PRODUCTO/TALLA/PRECIO: "${texto}"`);
                 } catch (e) {
@@ -583,10 +617,12 @@ async function procesarMensajes(body) {
             
             const buscaPagoDatos = textoSinTildes.includes('scotiabank') || 
                               textoSinTildes.includes('transferencia') ||
-                              textoSinTildes.includes('transfiero') || 
+                              textoSinTildes.includes('transfiero') || // V19
                               textoSinTildes.includes('transferir') || 
                               textoSinTildes.includes('deposito') || 
-                              textoSinTildes.includes('cuenta');
+                              textoSinTildes.includes('cuenta') ||
+                              textoSinTildes.includes('clabe') ||
+                              textoSinTildes.includes('cinta'); // V19
             
             const buscaDinamica = esPreguntaInformacional ||
                                    textoSinTildes.includes('mecanica') || 
