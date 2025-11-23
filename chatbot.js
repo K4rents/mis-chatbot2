@@ -31,7 +31,8 @@ let bienvenidaEnviada = new Map();
 const conversacionEnEscalamiento = new Map(); 
 
 // Palabras clave de producto/compra 
-const palabrasProducto = ['modelo', 'talla', 'precio', 'vestido', 'falda', 'blusa', 'pantalón', 'pantalon', 'ropa', 'artículo', 'articulo', 'catalogo', 'stock', 'pedido', 'compra']; 
+// *** LISTA AJUSTADA: YA NO CONTIENE 'pedido' ni 'compra' ***
+const palabrasProducto = ['modelo', 'talla', 'precio', 'vestido', 'falda', 'blusa', 'pantalón', 'pantalon', 'ropa', 'artículo', 'articulo', 'catalogo', 'stock']; 
 // Palabras críticas para escalamiento inmediato (Prioridad 0.0)
 const palabrasCriticas = ['devolución', 'devolucion', 'regresar', 'cambio', 'reembolso', 'reembolsar', 'queja', 'garantía', 'garantia']; 
 
@@ -63,7 +64,7 @@ const mensajeDinamicaVideo =
     `Seguimos en línea para lo que necesites. 😊\n\n` +
     `Por favor, tómate solo 30 segundos para ver nuestro video de bienvenida, ahí te explico nuestra dinámica: ${VIDEO_BIENVENIDA_URL}`;
 
-// MENSAJE DE CIERRE PURO (P1.5)
+// MENSAJE DE CIERRE PURO (P1.5) - SOLICITADO POR EL USUARIO
 const mensajeCierrePuro = 
     `Seguimos en línea para lo que necesites. 😊`;
     
@@ -266,11 +267,16 @@ async function procesarMensajes(body) {
             
             // --- Definición de P0 (Venta Agresiva) para uso en la lógica
             const buscaPedidoClaro = textoSinTildes.includes('quiero hacer un pedido') || 
+                                     textoSinTildes.includes('quiero realizar un pedido') || // <-- AJUSTADO
+                                     textoSinTildes.includes('hacer un pedido') || // <-- AJUSTADO
+                                     textoSinTildes.includes('realizar un pedido') || // <-- AJUSTADO
                                      textoSinTildes.includes('quiero comprar') ||
                                      textoSinTildes.includes('para comprar') ||
                                      textoSinTildes.includes('compraria') ||
                                      textoSinTildes.includes('dame el precio') ||
                                      textoSinTildes.includes('comprar') ||
+                                     textoSinTildes.includes('compra') || // <-- AJUSTADO
+                                     textoSinTildes.includes('pedido') || // <-- AJUSTADO
                                      textoSinTildes.includes('cuanto') ||
                                      textoSinTildes.includes('pago') || 
                                      textoSinTildes.includes('pagar') || 
@@ -312,7 +318,6 @@ async function procesarMensajes(body) {
             
             // -------------------------------------------
             // 🚩 0. PRIORIDAD MÁXIMA: ESCALAMIENTO POR PEDIDO CLARO / CONTACTO / IMAGEN (VENTA AGRESIVA) 🚩
-            // MOVIDO AQUÍ PARA CAPTURAR INTENCIÓN DE COMPRA ANTES QUE NADA.
             // -------------------------------------------
             
             const esImagenDePedido = (
@@ -420,7 +425,7 @@ async function procesarMensajes(body) {
             const buscaCierre = textoSinTildes.includes('gracias') ||
                                 textoSinTildes.includes('bye') ||
                                 textoSinTildes.includes('saludos') ||
-                                textoSinTildes.includes('ok') || // AÑADIDO .includes()
+                                textoSinTildes.includes('ok') || 
                                 textoSinTildes.includes('va') || 
                                 textoSinTildes.includes('vale') || 
                                 textoSinTildes.includes('sale') || 
