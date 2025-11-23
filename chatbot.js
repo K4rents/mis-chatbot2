@@ -32,7 +32,7 @@ const URL_MECANICA_COMPRA = 'https://drive.google.com/file/d/163YfomYIO9JojMvQGy
 
 const PAUSA_ENTRE_MENSAJES = 6000; // 6 segundos (para evitar el error anti-flood de Wasender)
 
-// Control de concurrencia y contexto
+// Control de concurrencia y contexto (PERSISTENCIA V33)
 const mensajesProcesados = new Set();
 const contextoProductoUsuario = new Map();
 const respuestaCorta = ['sí', 'si', 'ok', 'claro', 'chica', 'chico', 's', 'okey', 'vale', 'va'];
@@ -219,7 +219,37 @@ async function procesarMensajes(body) {
 
             const numeroRaw = msgObj.key?.remoteJid || msgObj.remoteJid;
             if (!texto || !numeroRaw) continue;
-            const numero = numeroRaw.replace(/@s\.whatsapp\.net$/, '');
+
+
+            // -------------------------------------------
+            // 🚩 0.1 PRIORIDAD: LIMPIEZA CRÍTICA, BLOQUEO DE GRUPOS Y NORMALIZACIÓN 🚩
+            // -------------------------------------------
+            
+            // Un JID de grupo SIEMPRE termina en '@g.us'. Los individuales terminan en '@s.whatsapp.net'.
+            if (numeroRaw.endsWith('@g.us')) {
+                console.log(`❌ MENSAJE DE GRUPO DETECTADO Y BLOQUEADO: ${numeroRaw}`);
+                continue; // ⬅️ Detiene el procesamiento de este mensaje
+            }
+            
+            // ⬅️ CRÍTICO: Normalización SIMPLE (usando el formato que funciona para Telcel)
+            let numero = numeroRaw.replace(/@s\.whatsapp\.net$/, '');
+            
+            // ⬅️ CRÍTICO: Bloqueo de JID/números excesivamente largos (DEFENSA contra CRASH)
+            if (numero.length > 15) { 
+                console.log(`❌ MENSAJE DE NUMERO EXCESIVAMENTE LARGO DETECTADO Y BLOQUEADO: ${numero}. JID INESPERADO.`);
+                continue; 
+            }
+
+            // Re-normalización de 10 dígitos (seguridad para mensajes salientes)
+            // Esto asegura que cualquier número de 10 dígitos (local) se convierta a 521XXXXXXXXXX
+            numero = numero.replace(/[^0-9]/g, '');
+            if (numero.length === 10 && !numero.startsWith('52')) {
+                numero = '521' + numero;
+                console.log(`✅ Número normalizado: Forzado a 521 + 10 dígitos -> ${numero}`);
+            } 
+            
+            // -------------------------------------------
+
             const textoLower = texto.toLowerCase();
             
             // 🔥 CRÍTICO: Texto sin tildes para comparación precisa de keywords
@@ -304,7 +334,7 @@ async function procesarMensajes(body) {
                               textoSinTildes.includes('cual cuenta') ||
                               textoSinTildes.includes('dinero') || 
                               textoSinTildes.includes('envio'); 
-                  
+                              
             if (buscaPago) {
                 console.log(`[FLOW] Solicitud de información de PAGO de ${numero}.`);
                 await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
@@ -405,7 +435,7 @@ async function procesarMensajes(body) {
             // Enviar respuesta final
             if (respuesta) {
                  await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES)); 
-                await enviarTextoWasender(numero, respuesta);
+                 await enviarTextoWasender(numero, respuesta);
             }
         }
     } catch (e) {
