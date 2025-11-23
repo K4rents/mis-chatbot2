@@ -16,7 +16,7 @@ const PAUSA = 6000;
 
 // 🔥 URLs que sí usas
 const VIDEO_BIENVENIDA_URL = "https://drive.google.com/file/d/1W90iW4nJy7pqvraA--FJTT_HQQw3h4uJ/view";
-const URL_MECANICA_COMPRA = "https://drive.google.com/file/d/163YfomYIO9JojMvQGy7VUa0EkV1tXKLe/view?usp=sharing";
+const URL_MECANICA_COMPRA = "https://drive.google.com/file/d/163YfomYIO9JojMvQGy7VUa0EkV1tXKLe/view?usp=sharing"; // URL que no se está usando actualmente
 
 // ---------------------- UTILIDADES ----------------------
 function delay(ms) { return new Promise(res => setTimeout(res, ms)); }
@@ -110,7 +110,7 @@ Si deseas asegurar tu pedido o hacer un anticipo, puedes usar nuestros datos de 
 
 _Recuerda enviar tu comprobante al chat para que tu pedido avance._`;
 
-// ✅ Leyenda amable mejorada
+// Leyenda amable mejorada
 const MENSAJE_VIDEO = `¡Con gusto! Para que todo sea súper claro y rápido, mira este breve video (solo 30 segundos) donde te explicamos paso a paso nuestra dinámica de compra: ${VIDEO_BIENVENIDA_URL}`;
 
 const SALUDO_EXISTENTE = `¡Hola de nuevo! 😊 ¿En qué puedo ayudarte hoy? Aquí está la dinámica: ${VIDEO_BIENVENIDA_URL}`;
@@ -192,12 +192,14 @@ async function procesar(body) {
             clean.includes("mecanica") || clean.includes("dinamica") ||
             clean.includes("como comprar") || clean.includes("pedido") ||
             clean.includes("orden") || clean.includes("comprar") ||
-            clean.includes("hacer") || clean.includes("proceso"); // <-- Mejora para detección
+            clean.includes("hacer") || 
+            clean.includes("realizo") || // <--- ¡CORRECCIÓN APLICADA!
+            clean.includes("proceso");
 
         if (buscaDinamica) {
             memoriaBienvenida.add(bienvenidaKey);
             await delay(PAUSA);
-            await enviarTexto(numero, MENSAJE_VIDEO); // <-- Usa el mensaje amable
+            await enviarTexto(numero, MENSAJE_VIDEO);
             continue;
         }
 
@@ -259,4 +261,3 @@ app.post("/webhook", (req, res) => {
 
 // ---------------------- RUN ----------------------
 app.listen(PORT, () => console.log(`🤖 Bot en puerto ${PORT}`));
-
