@@ -28,7 +28,8 @@ const MEMORY_FILE = 'welcome_memory.json';
 // Control de concurrencia y contexto
 const mensajesProcesados = new Set();
 let bienvenidaEnviada = new Map(); 
-const conversacionEnEscalamiento = new Map(); // Mapa para controlar si el humano ya fue notificado
+const conversacionEnEscalamiento = new Map(); // Mapa para controlar si el humano ya fue notificado (P0.2)
+const videoDinamicaEnviada = new Map(); // NUEVO: Mapa para asegurar que el video P2 solo se envíe una vez.
 
 // Palabras clave de producto/compra 
 const palabrasProducto = ['modelo', 'talla', 'precio', 'vestido', 'falda', 'blusa', 'pantalón', 'pantalon', 'ropa', 'artículo', 'articulo', 'catalogo', 'stock']; 
@@ -70,6 +71,7 @@ const mensajeCierrePuro =
 const mensajeSaludoExistente = 
     `¡Hola, bienvenida de nuevo! 😊 ¿En qué puedo ayudarte hoy? Recuerda que nuestra dinámica de compra está en este video: ${VIDEO_BIENVENIDA_URL}`;
 
+
 const bienvenidaTextoParte1 = 
     `¡Hola, bienvenida a *Karen's Clothes*! Soy **Paola** y estoy encantada de atenderte. ✨\n\n` +
     `¿Tienes tienda o te manejas sobre pedido?\n\n` + 
@@ -90,6 +92,10 @@ async function cargarMemoria() {
         const data = await fs.readFile(MEMORY_FILE, 'utf8');
         const parsed = JSON.parse(data);
         bienvenidaEnviada = new Map(parsed.bienvenidaEnviada);
+        // Cargar el nuevo mapa de dinámica de video
+        if (parsed.videoDinamicaEnviada) {
+            videoDinamicaEnviada = new Map(parsed.videoDinamicaEnviada);
+        }
         console.log(`✅ Memoria de bienvenida cargada. ${bienvenidaEnviada.size} clientes recurrentes.`);
     } catch (error) {
         if (error.code === 'ENOENT') {
@@ -103,10 +109,11 @@ async function cargarMemoria() {
 async function guardarMemoria() {
     try {
         const data = JSON.stringify({
-            bienvenidaEnviada: Array.from(bienvenidaEnviada.entries())
+            bienvenidaEnviada: Array.from(bienvenidaEnviada.entries()),
+            videoDinamicaEnviada: Array.from(videoDinamicaEnviada.entries()) // Guardar el nuevo mapa
         });
         await fs.writeFile(MEMORY_FILE, data, 'utf8');
-        console.log('💾 Memoria de bienvenida guardada.');
+        console.log('💾 Memoria de bienvenida y dinámica guardada.');
     } catch (error) {
         console.error('❌ Error al guardar memoria:', error.message);
     }
@@ -169,10 +176,14 @@ async function enviarBienvenidaCompleta(numero) {
     
     await enviarTextoWasender(numero, bienvenidaTextoParte2);
     
+    // Asegurar que tanto el estado de bienvenida como el de dinámica estén marcados.
     if(!bienvenidaEnviada.has(numero)) {
         bienvenidaEnviada.set(numero, true);
-        await guardarMemoria();
     }
+    if(!videoDinamicaEnviada.has(numero)) {
+        videoDinamicaEnviada.set(numero, true);
+    }
+    await guardarMemoria();
 }
 
 async function obtenerRespuestaOpenRouter(mensaje, contexto) {
@@ -295,7 +306,7 @@ async function procesarMensajes(body) {
                                      textoSinTildes.includes('captura'); 
             // --- Fin definición P0
             
-            // --- NUEVO FILTRO PARA REENVÍO DE PAGO EN P0.2
+            // --- FILTRO PARA REENVÍO DE PAGO EN P0.2
             const buscaReenvioPago = textoSinTildes.includes('pago') || 
                                      textoSinTildes.includes('pagar') || 
                                      textoSinTildes.includes('cuenta') || 
@@ -306,7 +317,7 @@ async function procesarMensajes(body) {
                                      textoSinTildes.includes('comprar') ||
                                      textoSinTildes.includes('pedido') ||
                                      textoSinTildes.includes('datos');
-            // --- FIN NUEVO FILTRO
+            // --- FIN FILTRO
 
             
             // -------------------------------------------
@@ -439,15 +450,27 @@ async function procesarMensajes(body) {
                   
             if (buscaPagoDatos || buscaDinamica) { 
                 console.log(`[FLOW] Solicitud de Pago/Dinamica/Instrucciones (P2) de ${numero}.`);
-                await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
                 
-                if (buscaPagoDatos) await enviarTextoWasender(numero, mensajePago);
-                if (buscaDinamica) await enviarTextoWasender(numero, mensajeDinamicaVideo);
+                // 1. Send Payment Data (if requested)
+                if (buscaPagoDatos) {
+                    await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
+                    await enviarTextoWasender(numero, mensajePago);
+                }
                 
+                // 2. Send Dynamic Video (only if it hasn't been sent before)
+                if (buscaDinamica && !videoDinamicaEnviada.has(numero)) {
+                    await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
+                    await enviarTextoWasender(numero, mensajeDinamicaVideo);
+                    videoDinamicaEnviada.set(numero, true); // Set the guard
+                }
+                
+                // Update welcome state
                 if(!bienvenidaEnviada.has(numero)) {
                     bienvenidaEnviada.set(numero, true);
-                    await guardarMemoria();
                 }
+                await guardarMemoria();
+
+                // Continuamos para evitar que la P4 (IA) procese las preguntas de P2.
                 continue; 
             }
             
