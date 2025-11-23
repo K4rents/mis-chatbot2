@@ -158,8 +158,7 @@ async function procesar(body) {
         const bienvenidaKey = `welc_${numero}`;
         
         // ---------------------- 🎯 DINÁMICA (ALTA PRIORIDAD) ----------------------
-        // ✅ Esta condición cubre "como realizo una compra", "como hago una compra"
-        // y "como se realiza un pedido", evitando la escalación.
+        // ✅ CUBRE: "como hago una compra", "como realizo una compra", "como hago un pedido", etc.
         const buscaDinamica =
             clean.includes("mecanica") || clean.includes("dinamica") ||
             clean.includes("como comprar") || clean.includes("pedido") ||
@@ -172,7 +171,7 @@ async function procesar(body) {
             memoriaBienvenida.add(bienvenidaKey);
             await delay(PAUSA);
             await enviarTexto(numero, MENSAJE_VIDEO);
-            continue; // Detiene el flujo y no consulta a la IA
+            continue; // ¡IMPORTANTE! Evita la escalación a la IA.
         }
         
         // ---------------------- ESCALAMIENTO AUTOMÁTICO POR IMAGEN ----------------------
