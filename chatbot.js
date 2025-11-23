@@ -46,16 +46,17 @@ const mensajePago =
     `*Tarjeta:* **5579209154257585**\n\n` +
     `_Recuerda enviar tu comprobante al chat para que tu pedido avance._`;
     
+// --- MENSAJE DE ESCALAMIENTO MÁXIMO OPTIMIZADO PARA CONFIANZA (INCLUYE DATOS DE PAGO) ---
 const mensajeEscalaCompleta = 
-    `¡Excelente! 🛒 Con gusto te ayudo a finalizar tu compra. Estoy conectando tu conversación con una vendedora experta para confirmar stock, tallas y resolver cualquier duda. Te atenderán en breve. ¡Gracias! 😊\n\n${mensajePago}`;
+    `¡Excelente! 🛒 Ya te estoy enlazando con nuestra *vendedora experta* para finalizar tu compra. Ella confirmará *stock*, *tallas* y resolverá cualquier duda. ¡Te atenderán de inmediato! 😊\n\n${mensajePago}`;
 
-// 🚩 MENSAJE PARA ESCALAMIENTO SUAVE DE ENVÍO (PRIORIDAD 0.5) 🚩
+// 🚩 MENSAJE PARA ESCALAMIENTO SUAVE DE ENVÍO (P0.5) OPTIMIZADO PARA CONFIANZA (SIN PAGO) 🚩
 const mensajeEnvioEscalaSuave = 
-    `¡Excelente! 📦 Con gusto te ayudo con los detalles de tu envío. Estoy conectando tu conversación con una vendedora experta para cotizar, confirmar cobertura y resolver cualquier duda. Te atenderán en breve. ¡Gracias! 😊`;
+    `¡Excelente! 📦 Ya te estoy enlazando con nuestra *vendedora experta*. Ella cotizará el *envío* y confirmará la cobertura. ¡Te atenderán de inmediato! 😊`;
 
-// 🚩 MENSAJE PARA ESCALAMIENTO SUAVE DE PRODUCTO (PRIORIDAD 0.6) 🚩
+// 🚩 MENSAJE PARA ESCALAMIENTO SUAVE DE PRODUCTO (P0.6) OPTIMIZADO PARA CONFIANZA (SIN PAGO) 🚩
 const mensajeProductoEscalaSuave = 
-    `¡Excelente! 👕 Con gusto te ayudo con los detalles del producto. Estoy conectando tu conversación con una vendedora experta para confirmar *stock* y *talla* o resolver cualquier duda que tengas. Te atenderán en breve. ¡Gracias! 😊`;
+    `¡Excelente! 👕 Ya te estoy enlazando con nuestra *vendedora experta*. Ella confirmará el *stock* y *talla* o resolverá cualquier otra duda que tengas. ¡Te atenderán de inmediato! 😊`;
     
 // MENSAJE COMBINADO DE REENGANCHE Y DINÁMICA (P1.5) 
 const mensajeDinamicaVideo = 
@@ -313,8 +314,8 @@ async function procesarMensajes(body) {
             // -------------------------------------------
             // 🚩 0. PRIORIDAD MÁXIMA: ESCALAMIENTO POR PEDIDO CLARO / CONTACTO / IMAGEN / CONFIRMACIÓN DE PAGO 🚩
             // -------------------------------------------
-            const buscaPedidoClaro = textoSinTildes.includes('quiero hacer un pedido') ||
-                                     textoSinTildes.includes('hacer un pedido') ||
+            // NOTA: Se eliminan keywords de "proceso" ('como', 'hacer un pedido') para que P2 (Video Dinámica) las capture.
+            const buscaPedidoClaro = textoSinTildes.includes('quiero hacer un pedido') || // Clear Intent
                                      textoSinTildes.includes('quiero comprar') ||
                                      textoSinTildes.includes('para comprar') ||
                                      textoSinTildes.includes('compraria') ||
@@ -339,9 +340,7 @@ async function procesarMensajes(body) {
                                      // --- PALABRAS CLAVE CRÍTICAS DE CONFIRMACIÓN DE PAGO ---
                                      textoSinTildes.includes('comprobante') ||
                                      textoSinTildes.includes('captura') ||         
-                                     textoSinTildes.includes('transferencia');
-                                     
-
+                                     textoSinTildes.includes('transferencia'); // Transferencia se repite en P2 para el mensaje de pago, pero aquí fuerza la escalada completa
 
             const esImagenDePedido = (
                 msgObj.message?.imageMessage && 
@@ -353,7 +352,7 @@ async function procesarMensajes(body) {
                 await notificarSlack(numero, `INTENCIÓN DE COMPRA/CONTACTO/SEGMENTACIÓN: "${texto}"`);
                 await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
                 
-                // Usar el mensaje completo y estandarizado (INCLUYE DATOS DE PAGO)
+                // Envía el mensaje completo (INCLUYE DATOS DE PAGO)
                 await enviarTextoWasender(numero, mensajeEscalaCompleta);
                 
                 // Desbloquear la conversación
@@ -468,7 +467,7 @@ async function procesarMensajes(body) {
                 await notificarSlack(numero, `PIDE INFORMES ESPECÍFICOS (Producto/Pedido): "${texto}"`);
                 await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
                 
-                // Usar el mensaje completo de Escalada
+                // Usar el mensaje completo de Escalada (Incluye datos de pago si pide precio/pedido/etc)
                 await enviarTextoWasender(numero, mensajeEscalaCompleta);
                 
                 // Marcar como atendido si es nuevo
@@ -500,9 +499,9 @@ async function procesarMensajes(body) {
                               textoSinTildes.includes('transfiero') || 
                               textoSinTildes.includes('transferir') || 
                               textoSinTildes.includes('deposito') || 
-                              textoSinTildes.includes('cuenta'); // <-- Se eliminaron 'pago' y 'anticipo'
+                              textoSinTildes.includes('cuenta');
             
-            // LÓGICA DE DINÁMICA/VIDEO - Captura preguntas de "cómo" o "proceso" 
+            // LÓGICA DE DINÁMICA/VIDEO - Captura preguntas de "cómo" o "proceso" (INCLUYE "COMO REALIZO UN PEDIDO")
             const buscaDinamica = textoSinTildes.includes('mecanica') || 
                                    textoSinTildes.includes('dinamica') || 
                                    textoSinTildes.includes('como se realiza') ||
@@ -510,13 +509,18 @@ async function procesarMensajes(body) {
                                    textoSinTildes.includes('como') || 
                                    textoSinTildes.includes('proceso') || 
                                    textoSinTildes.includes('realizo') ||
-                                   textoSinTildes.includes('hago');
+                                   textoSinTildes.includes('hago') ||
+                                   textoSinTildes.includes('hacer un pedido') ||
+                                   textoSinTildes.includes('pedido'); // 'pedido' se incluye aquí para priorizar el proceso del video
+
                   
             if (buscaPago || buscaDinamica) {
                 console.log(`[FLOW] Solicitud de Pago/Dinamica/Instrucciones de ${numero}.`);
                 await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
                 
+                // Si busca pago, envía solo los datos de pago
                 if (buscaPago) await enviarTextoWasender(numero, mensajePago);
+                // Si busca dinámica (proceso), envía el video
                 if (buscaDinamica) await enviarTextoWasender(numero, mensajeDinamicaVideo);
                 
                 if(!bienvenidaEnviada.has(numero)) {
@@ -553,9 +557,7 @@ async function procesarMensajes(body) {
             if (respuestaIA.includes("COMANDO_ESCALAR") || respuestaIA.includes("COMANDO_ESCALAR_FALLO")) {
                 escalarAHumano = true;
             } else {
-                // 2. Refuerzo: Revisar la pregunta por Keywords (La P0.6 ahora toma la mayoría de keywords de producto)
-                // Si la IA no sugirió escalar, y ya pasamos por P0.6, es improbable que deba escalar aquí.
-                // Mantener el check de producto como respaldo final si la IA falla.
+                // 2. Refuerzo: Revisar la pregunta por Keywords 
                 if (palabrasProducto.some(keyword => textoSinTildes.includes(keyword))) {
                     console.log(`🚨 ESCALANDO FORZADO (P4 Fallback): La IA falló, pero la pregunta (${texto}) contiene Keywords de producto/compra.`);
                     escalarAHumano = true;
@@ -566,8 +568,7 @@ async function procesarMensajes(body) {
                 console.log(`🚨 ESCALANDO a humano por solicitud de producto/compra (P4): ${numero}`);
                 await notificarSlack(numero, texto);
                 
-                // NOTA: Para el fallback de P4, la escalada debe ser con el mensaje de producto suave (P0.6)
-                // ya que es el mensaje menos agresivo para una escalada indeterminada.
+                // Se usa el mensaje de producto suave (P0.6) para evitar el mensaje agresivo y datos de pago.
                 respuesta = mensajeProductoEscalaSuave; 
                 
                 // Desbloquear la conversación
