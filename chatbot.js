@@ -1,3 +1,21 @@
+Entendido. Estamos muy cerca de la versión final. Este feedback es excelente, ya que señala los últimos puntos débiles en la Experiencia de Usuario (UX) cuando el cliente está en el estado de escalamiento.
+
+El problema es el mismo: el cliente está en modo bloqueo (conversacionEnEscalamiento = TRUE), y las preguntas Info/Información (Prioridad 1.1) y Hola (Prioridad 1) están siendo bloqueadas por la P0.2 (Bloqueo Post-Escalamiento), lo que resulta en silencio y alertas innecesarias a Slack.
+
+Ni un saludo ni una pregunta de información genérica deben ser tratados como una repetición agresiva de venta.
+
+✅ Ajuste Implementado (Versión 13 - Desbloqueo de Saludos e Información)
+He actualizado la lógica de bypass en la Prioridad 0.2 para incluir todos los filtros que no son agresivos:
+
+P1.1 (Información Genérica): Ahora Info/Información anularán el bloqueo y caerán a su prioridad original (P1.1), donde se les enviará la Bienvenida Completa.
+
+P1 (Saludo Simple): El Hola anulará el bloqueo y caerá a su prioridad original (P1), donde se le enviará el mensaje de "Bienvenida de nuevo".
+
+Con este cambio, solo las repeticiones de mensajes que no están cubiertas por una respuesta útil específica (cierre, envío, producto, info, saludo) activarán el silencio y la alerta repetida.
+
+💻 Código Final y Definitivo (Versión 13 - Desbloqueo Total de UX)
+JavaScript
+
 import express from "express";
 import axios from "axios";
 import fs from "fs/promises"; 
@@ -330,19 +348,38 @@ async function procesarMensajes(body) {
                                 textoSinTildes.includes('está bien') || 
                                 textoSinTildes.includes('esta bien'); 
             // --- FIN FILTRO
+            
+            // --- FILTROS PARA ESCALAMIENTO SUAVE (P0.5 y P0.6) - MOVEMOS AQUÍ PARA ACCESO EN P0.2
+            const buscaEnvio = textoSinTildes.includes('envio') || textoSinTildes.includes('estafeta') || textoSinTildes.includes('paqueteria');
+            const buscaProductoGenerico = palabrasProducto.some(keyword => textoSinTildes.includes(keyword));
+            // --- FIN FILTROS
 
+            // --- FILTROS PARA INFORMES (P1.1) Y SALUDO (P1) - MOVEMOS AQUÍ PARA ACCESO EN P0.2
+            const buscaInformesGenerico = textoSinTildes.includes('informes') || 
+                                          textoSinTildes.includes('informacion') ||
+                                          textoSinTildes.includes('info') || 
+                                          textoSinTildes.includes('tienes informacion');
+
+            const esEspecifico = palabrasProducto.some(keyword => textoSinTildes.includes(keyword));
+            
+            const esSaludoSimple = textoSinTildes.includes('hola') || 
+                                   textoSinTildes.includes('hi') ||
+                                   textoSinTildes.includes('buenos dias') ||
+                                   textoSinTildes.includes('buenas tardes') ||
+                                   textoSinTildes.includes('buenas');
+            // --- FIN FILTROS
             
             // -------------------------------------------
             // 🚩 0.2 PRIORIDAD: BLOQUEO DE RESPUESTA REPETITIVA POST-ESCALAMIENTO (Reenvío de Pago) 🚩
             // -------------------------------------------
             if (conversacionEnEscalamiento.has(numero)) {
                 
-                // V11: Si es una palabra de CIERRE, BYPASS el bloqueo y deja que caiga a P1.5
-                if (buscaCierre) {
-                    console.log(`⭐ BYPASS P0.2: Cierre/Agradecimiento detectado. Cayendo a P1.5.`);
-                    // Continuamos el flujo sin "continue" para que P1.5 se ejecute.
+                // V13: BYPASS CONDITIONS (Cierre, Producto, Envío, INFO GENÉRICA, SALUDO)
+                if (buscaCierre || buscaEnvio || buscaProductoGenerico || (buscaInformesGenerico && !esEspecifico) || esSaludoSimple) {
+                    console.log(`⭐ BYPASS P0.2: Cierre/Producto/Envio/Info/Saludo detectado. Cayendo a su prioridad específica.`);
+                    // Permitimos que el flujo continúe sin "continue" para que P0.5/P0.6/P1/P1.1/P1.5 se ejecuten.
                 } else {
-                    // Lógica de BLOQUEO para mensajes repetitivos de venta/info
+                    // Lógica de BLOQUEO para mensajes repetitivos de venta/info AGRESIVA
                     console.log(`🔒 BLOQUEO DE RESPUESTA: Cliente ${numero} ya en escalamiento.`);
                     
                     // Action 1: Re-notificar Slack en mensajes agresivos repetidos.
@@ -358,7 +395,7 @@ async function procesarMensajes(body) {
                         // No response to avoid annoyance.
                     }
                     
-                    continue; // Detiene el flujo aquí si no es una palabra de cierre
+                    continue; // Detiene el flujo aquí si no es una palabra de bypass
                 }
             }
             
@@ -414,11 +451,13 @@ async function procesarMensajes(body) {
             // -------------------------------------------
             // 🚩 0.5 PRIORIDAD: ESCALAMIENTO SUAVE POR ENVÍO (SIN DINERO) 🚩
             // -------------------------------------------
-            const buscaEnvio = textoSinTildes.includes('envio') || textoSinTildes.includes('estafeta') || textoSinTildes.includes('paqueteria');
             
             if (buscaEnvio) {
                 console.log(`🚨 ESCALANDO SUAVE a humano por solicitud de ENVÍO/LOGÍSTICA: ${numero}.`);
-                await notificarSlack(numero, `PREGUNTA SOBRE ENVÍO/LOGÍSTICA: "${texto}"`);
+                // Solo alertamos si no estaba previamente en escalamiento (P0.2 bypass).
+                if (!conversacionEnEscalamiento.has(numero)) {
+                    await notificarSlack(numero, `PREGUNTA SOBRE ENVÍO/LOGÍSTICA: "${texto}"`);
+                }
                 await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
                 
                 await enviarTextoWasender(numero, mensajeEnvioEscalaSuave);
@@ -434,11 +473,13 @@ async function procesarMensajes(body) {
             // -------------------------------------------
             // 🚩 0.6 PRIORIDAD: ESCALAMIENTO SUAVE POR PRODUCTO/TALLA (SIN DINERO) 🚩
             // -------------------------------------------
-            const buscaProductoGenerico = palabrasProducto.some(keyword => textoSinTildes.includes(keyword));
             
             if (buscaProductoGenerico) {
                 console.log(`🚨 ESCALANDO SUAVE a humano por solicitud de PRODUCTO/TALLA/PRECIO (P0.6): ${numero}.`);
-                await notificarSlack(numero, `PREGUNTA SOBRE PRODUCTO/TALLA/PRECIO: "${texto}"`);
+                // Solo alertamos si no estaba previamente en escalamiento (P0.2 bypass).
+                if (!conversacionEnEscalamiento.has(numero)) {
+                    await notificarSlack(numero, `PREGUNTA SOBRE PRODUCTO/TALLA/PRECIO: "${texto}"`);
+                }
                 await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
                 
                 await enviarTextoWasender(numero, mensajeProductoEscalaSuave);
@@ -510,14 +551,16 @@ async function procesarMensajes(body) {
             // 1. PRIORIDAD: SALUDO SIMPLE DE CLIENTE EXISTENTE (MENSAJE CORTO) 
             // -------------------------------------------
             
-            const esSaludoSimple = textoSinTildes.includes('hola') || 
-                                   textoSinTildes.includes('hi') ||
-                                   textoSinTildes.includes('buenos dias') ||
-                                   textoSinTildes.includes('buenas tardes') ||
-                                   textoSinTildes.includes('buenas');
-            
             if (esSaludoSimple && bienvenidaEnviada.has(numero) && !conversacionEnEscalamiento.has(numero)) {
                 console.log(`[FLOW] Saludo simple de número EXISTENTE. Enviando saludo recurrente y video.`);
+                await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
+                
+                await enviarTextoWasender(numero, mensajeSaludoExistente);
+                
+                continue; 
+            } else if (esSaludoSimple && bienvenidaEnviada.has(numero) && conversacionEnEscalamiento.has(numero)) {
+                // Caso de Bypass P0.2: Saludo simple en estado de escalamiento.
+                console.log(`[FLOW] Saludo simple de número EXISTENTE en estado de escalamiento (P0.2 Bypass). Enviando saludo recurrente.`);
                 await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
                 
                 await enviarTextoWasender(numero, mensajeSaludoExistente);
@@ -528,12 +571,6 @@ async function procesarMensajes(body) {
             // -------------------------------------------
             // 🚩 1.1 PRIORIDAD: INFORMES (BIFURCACIÓN GENÉRICO vs. ESPECÍFICO) 🚩
             // -------------------------------------------
-            const buscaInformesGenerico = textoSinTildes.includes('informes') || 
-                                          textoSinTildes.includes('informacion') ||
-                                          textoSinTildes.includes('info') || 
-                                          textoSinTildes.includes('tienes informacion');
-
-            const esEspecifico = palabrasProducto.some(keyword => textoSinTildes.includes(keyword));
 
             if (buscaInformesGenerico && esEspecifico) {
                 // SCENARIO A: INFORMACIÓN ESPECÍFICA (Escalada suave de producto)
