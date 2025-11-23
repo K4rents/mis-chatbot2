@@ -1,4 +1,3 @@
-import express from "express";
 import axios from "axios";
 import fs from "fs/promises"; 
 
@@ -312,9 +311,54 @@ async function procesarMensajes(body) {
             }
             
             // -------------------------------------------
-            // 🚩 0. PRIORIDAD MÁXIMA: ESCALAMIENTO POR PEDIDO CLARO / CONTACTO / IMAGEN / CONFIRMACIÓN DE PAGO 🚩
+            // 🚩 2. PRIORIDAD: MECÁNICA DE COMPRA / PAGO (RESPUESTA RÁPIDA - VIDEO) 🚩
+            // (¡MOVIMIENTO CRÍTICO! Se prioriza el "cómo" o "proceso" sobre la venta directa)
             // -------------------------------------------
-            // NOTA: Se eliminan keywords de "proceso" ('como', 'hacer un pedido') para que P2 (Video Dinámica) las capture.
+            
+            // LÓGICA DE PAGO (RESTRINGIDA: Solo palabras de transacción directa)
+            const buscaPago = textoSinTildes.includes('scotiabank') || 
+                              textoSinTildes.includes('transferencia') ||
+                              textoSinTildes.includes('transfiero') || 
+                              textoSinTildes.includes('transferir') || 
+                              textoSinTildes.includes('deposito') || 
+                              textoSinTildes.includes('cuenta');
+            
+            // LÓGICA DE DINÁMICA/VIDEO - Captura preguntas de "cómo" o "proceso" 
+            const buscaDinamica = textoSinTildes.includes('mecanica') || 
+                                   textoSinTildes.includes('dinamica') || 
+                                   textoSinTildes.includes('como se realiza') ||
+                                   textoSinTildes.includes('realizo una compra') ||
+                                   textoSinTildes.includes('como') || 
+                                   textoSinTildes.includes('proceso') || 
+                                   textoSinTildes.includes('realizo') ||
+                                   textoSinTildes.includes('hago') ||
+                                   textoSinTildes.includes('hacer un pedido') ||
+                                   textoSinTildes.includes('pedido');
+
+                  
+            if (buscaPago || buscaDinamica) {
+                console.log(`[FLOW] Solicitud de Pago/Dinamica/Instrucciones de ${numero}.`);
+                await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
+                
+                // Si busca pago (datos bancarios), envía solo los datos de pago
+                if (buscaPago) await enviarTextoWasender(numero, mensajePago);
+                // Si busca dinámica (proceso), envía el video
+                if (buscaDinamica) await enviarTextoWasender(numero, mensajeDinamicaVideo);
+                
+                if(!bienvenidaEnviada.has(numero)) {
+                    bienvenidaEnviada.set(numero, true);
+                    await guardarMemoria();
+                }
+                conversacionEnEscalamiento.delete(numero); 
+                continue; 
+            }
+
+
+            // -------------------------------------------
+            // 🚩 0. PRIORIDAD MÁXIMA: ESCALAMIENTO POR PEDIDO CLARO / CONTACTO / IMAGEN / CONFIRMACIÓN DE PAGO 🚩
+            // (Ahora que ya se respondió el "cómo", se procede con la venta)
+            // -------------------------------------------
+            // NOTA: Se eliminan keywords de "proceso" ('como', 'hacer un pedido', 'pedido') para que P2 (Video Dinámica) las capture.
             const buscaPedidoClaro = textoSinTildes.includes('quiero hacer un pedido') || // Clear Intent
                                      textoSinTildes.includes('quiero comprar') ||
                                      textoSinTildes.includes('para comprar') ||
@@ -340,8 +384,8 @@ async function procesarMensajes(body) {
                                      // --- PALABRAS CLAVE CRÍTICAS DE CONFIRMACIÓN DE PAGO ---
                                      textoSinTildes.includes('comprobante') ||
                                      textoSinTildes.includes('captura') ||         
-                                     textoSinTildes.includes('transferencia'); // Transferencia se repite en P2 para el mensaje de pago, pero aquí fuerza la escalada completa
-
+                                     textoSinTildes.includes('transferencia'); 
+            
             const esImagenDePedido = (
                 msgObj.message?.imageMessage && 
                 (textoSinTildes.includes('pedido') || textoSinTildes.includes('orden') || textoSinTildes.includes('comprar') || textoSinTildes.includes('pago')) 
@@ -488,48 +532,6 @@ async function procesarMensajes(body) {
                 continue; 
             }
 
-            
-            // -------------------------------------------
-            // 🚩 2. PRIORIDAD: MECÁNICA DE COMPRA / PAGO (RESPUESTA RÁPIDA - RESTRINGIDA) 🚩
-            // -------------------------------------------
-            
-            // LÓGICA DE PAGO (RESTRINGIDA: Solo palabras de transacción directa)
-            const buscaPago = textoSinTildes.includes('scotiabank') || 
-                              textoSinTildes.includes('transferencia') ||
-                              textoSinTildes.includes('transfiero') || 
-                              textoSinTildes.includes('transferir') || 
-                              textoSinTildes.includes('deposito') || 
-                              textoSinTildes.includes('cuenta');
-            
-            // LÓGICA DE DINÁMICA/VIDEO - Captura preguntas de "cómo" o "proceso" (INCLUYE "COMO REALIZO UN PEDIDO")
-            const buscaDinamica = textoSinTildes.includes('mecanica') || 
-                                   textoSinTildes.includes('dinamica') || 
-                                   textoSinTildes.includes('como se realiza') ||
-                                   textoSinTildes.includes('realizo una compra') ||
-                                   textoSinTildes.includes('como') || 
-                                   textoSinTildes.includes('proceso') || 
-                                   textoSinTildes.includes('realizo') ||
-                                   textoSinTildes.includes('hago') ||
-                                   textoSinTildes.includes('hacer un pedido') ||
-                                   textoSinTildes.includes('pedido'); // 'pedido' se incluye aquí para priorizar el proceso del video
-
-                  
-            if (buscaPago || buscaDinamica) {
-                console.log(`[FLOW] Solicitud de Pago/Dinamica/Instrucciones de ${numero}.`);
-                await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
-                
-                // Si busca pago, envía solo los datos de pago
-                if (buscaPago) await enviarTextoWasender(numero, mensajePago);
-                // Si busca dinámica (proceso), envía el video
-                if (buscaDinamica) await enviarTextoWasender(numero, mensajeDinamicaVideo);
-                
-                if(!bienvenidaEnviada.has(numero)) {
-                    bienvenidaEnviada.set(numero, true);
-                    await guardarMemoria();
-                }
-                conversacionEnEscalamiento.delete(numero); 
-                continue; 
-            }
             
             // -------------------------------------------
             // 🚩 3. PRIORIDAD: LÓGICA DE BIENVENIDA COMPLETA (CLIENTE NUEVO - DEFAULT) 🚩
