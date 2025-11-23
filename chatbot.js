@@ -2,7 +2,7 @@ import express from "express";
 import axios from "axios";
 
 // ----------------------------------------------------
-// 1. CONFIGURACIÓN: Variables de Entorno y Constantes
+// 1. CONFIGURACIÓN
 // ----------------------------------------------------
 const app = express();
 app.use(express.json());
@@ -12,22 +12,20 @@ const PORT = process.env.PORT || 10000;
 const WASENDER_API = process.env.WASENDER_API;
 const WASENDER_API_KEY = process.env.WASENDER_API_KEY;
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
-const SLACK_WEBHOOK_URL = process.env.SLACK_WEBHOOK_URL; 
-const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET; 
+const SLACK_WEBHOOK_URL = process.env.SLACK_WEBHOOK_URL;
+const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET;
 
-const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
+const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
 
-// 🚩 URLS DE MEDIOS DEFINITIVAS 🚩
-const VIDEO_BIENVENIDA_URL = 'https://drive.google.com/file/d/1W90iW4nJy7pqvraA--FJTT_HQQw3h4uJ/view'; 
-const URL_MECANICA_COMPRA = 'https://drive.google.com/file/d/163YfomYIO9JojMvQGy7VUa0EkV1tXKLe/view?usp=sharing'; 
+const VIDEO_BIENVENIDA_URL = "https://drive.google.com/file/d/1W90iW4nJy7pqvraA--FJTT_HQQw3h4uJ/view";
+const URL_MECANICA_COMPRA = "https://drive.google.com/file/d/163YfomYIO9JojMvQGy7VUa0EkV1tXKLe/view?usp=sharing";
 
 const PAUSA_ENTRE_MENSAJES = 6000;
 
 const mensajesProcesados = new Set();
-const contextoProductoUsuario = new Map();
 
 function stripAccents(str) {
-    if (!str) return '';
+    if (!str) return "";
     return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 }
 
@@ -36,51 +34,51 @@ function stripAccents(str) {
 // ----------------------------------------------------
 async function enviarTextoWasender(numero, text) {
     try {
-        await axios.post(WASENDER_API, {
-            to: numero,
-            text: text
-        }, {
-            headers: { 
-                'Authorization': `Bearer ${WASENDER_API_KEY}`, 
-                'Content-Type': 'application/json' 
+        await axios.post(
+            WASENDER_API,
+            { to: numero, text },
+            {
+                headers: {
+                    Authorization: `Bearer ${WASENDER_API_KEY}`,
+                    "Content-Type": "application/json",
+                },
             }
-        });
+        );
         console.log(`💬 Mensaje enviado a ${numero}: ${text.substring(0, 50)}...`);
     } catch (error) {
-        console.error('❌ Error al enviar texto:', error.response?.data || error.message);
+        console.error("❌ Error al enviar texto:", error.response?.data || error.message);
     }
 }
 
-async function enviarImagenWasender(numero, url, caption = '') {
+async function enviarImagenWasender(numero, url, caption = "") {
     try {
-        await axios.post(WASENDER_API, {
-            to: numero,
-            image: { url },
-            caption
-        }, {
-            headers: { 
-                'Authorization': `Bearer ${WASENDER_API_KEY}`, 
-                'Content-Type': 'application/json' 
+        await axios.post(
+            WASENDER_API,
+            { to: numero, image: { url }, caption },
+            {
+                headers: {
+                    Authorization: `Bearer ${WASENDER_API_KEY}`,
+                    "Content-Type": "application/json",
+                },
             }
-        });
+        );
         console.log(`🖼️ Imagen enviada a ${numero}.`);
     } catch (error) {
-        console.error('❌ Error imagen:', error.response?.data || error.message);
+        console.error("❌ Error imagen:", error.response?.data || error.message);
     }
 }
 
 // ----------------------------------------------------
-// 3. SLACK ESCALAMIENTO
+// 3. SLACK
 // ----------------------------------------------------
 async function notificarSlack(numero, mensajeCliente) {
     if (!SLACK_WEBHOOK_URL) return;
 
     const WA_LINK = `https://wa.me/${numero}`;
-
     const payload = {
         text: `<${WA_LINK}|🚨 Escalamiento: Cliente ${numero} – "${mensajeCliente}">`,
-        username: 'Boutique Bot',
-        icon_emoji: ':robot_face:'
+        username: "Karen's Bot",
+        icon_emoji: ":robot_face:",
     };
 
     try {
@@ -92,39 +90,42 @@ async function notificarSlack(numero, mensajeCliente) {
 }
 
 // ----------------------------------------------------
-// 4. OPENROUTER IA
+// 4. IA OPENROUTER
 // ----------------------------------------------------
 async function obtenerRespuestaOpenRouter(mensaje, contexto) {
     try {
-        const response = await axios.post(OPENROUTER_API_URL, {
-            model: "gpt-4o-mini",
-            messages: [
-                {
-                    role: "system",
-                    content: `Eres un asistente de ventas. Si el usuario pregunta por producto, precio, talla o compra, responde SOLO "COMANDO_ESCALAR".`
+        const response = await axios.post(
+            OPENROUTER_API_URL,
+            {
+                model: "gpt-4o-mini",
+                messages: [
+                    {
+                        role: "system",
+                        content:
+                            `Eres un asistente de ventas. Si el usuario pregunta por producto, precio, talla o compra, responde "COMANDO_ESCALAR".`,
+                    },
+                    { role: "system", content: contexto },
+                    { role: "user", content: mensaje },
+                ],
+            },
+            {
+                headers: {
+                    Authorization: `Bearer ${OPENROUTER_API_KEY}`,
+                    "Content-Type": "application/json",
                 },
-                { role: "system", content: contexto },
-                { role: "user", content: mensaje }
-            ]
-        }, {
-            headers: {
-                'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
-                'Content-Type': 'application/json'
             }
-        });
+        );
 
         return response.data.choices[0].message.content.trim();
-
     } catch (e) {
         return "COMANDO_ESCALAR_FALLO";
     }
 }
 
 // ----------------------------------------------------
-// 5. PROCESAR MENSAJES
+// 5. PROCESAMIENTO DE MENSAJES
 // ----------------------------------------------------
 async function procesarMensajes(body) {
-
     if (body?.event === "webhook.test") return;
 
     let mensajes = body?.data?.messages;
@@ -133,83 +134,74 @@ async function procesarMensajes(body) {
     mensajes = Array.isArray(mensajes) ? mensajes : [mensajes];
 
     for (const msg of mensajes) {
-
         const msgId = msg.key?.id;
         if (!msgId || mensajesProcesados.has(msgId)) continue;
         mensajesProcesados.add(msgId);
 
         if (!msg.message || msg.key.fromMe) continue;
 
-        let texto = msg.message?.conversation ||
-                    msg.message?.extendedTextMessage?.text ||
-                    msg.message?.imageMessage?.caption || "";
+        let texto =
+            msg.message?.conversation ||
+            msg.message?.extendedTextMessage?.text ||
+            msg.message?.imageMessage?.caption ||
+            "";
 
         if (!texto) continue;
 
         let numeroRaw = msg.key?.remoteJid || msg.remoteJid;
         if (!numeroRaw) continue;
 
-        // -----------------------------------------
-        // ❌ NO RESPONDER EN GRUPOS
-        // -----------------------------------------
+        // ❌ Bloquear grupos
         if (numeroRaw.endsWith("@g.us")) {
-            console.log("⛔ Mensaje de grupo bloqueado:", numeroRaw);
+            console.log("⛔ Grupo bloqueado:", numeroRaw);
             continue;
         }
 
-        // -----------------------------------------
-        // 🔥 NORMALIZAR NÚMERO (Anti-Telcel Corrupto)
-        // -----------------------------------------
-        let numero = numeroRaw.replace(/@s\.whatsapp\.net$/, "");
-        let soloDigitos = numero.replace(/\D/g, "");
-
-        // 1. Debe iniciar con 52 (México)
-        if (!soloDigitos.startsWith("52")) {
-            console.log("⛔ Bloqueado por no iniciar en 52:", soloDigitos);
-            continue;
-        }
-
-        // 2. Extraemos el número REAL de 10 dígitos (últimos 10)
-        const numeroReal = soloDigitos.slice(-10);
+        // ------------------------------------------
+        // 🔥 ANTI-TELCEL: extraer SIEMPRE el número real
+        // ------------------------------------------
+        let soloDigitos = numeroRaw.replace(/\D/g, "");
+        let numeroReal = soloDigitos.slice(-10); // últimos 10 dígitos
 
         if (numeroReal.length !== 10) {
             console.log("⛔ Número inválido:", soloDigitos);
             continue;
         }
 
-        console.log("✅ Cliente real detectado:", numeroReal);
+        console.log("✅ Cliente real:", numeroReal);
 
         const textoLower = texto.toLowerCase();
         const textoSinTildes = stripAccents(textoLower);
 
-        const mensajePago = 
+        const bienvenidaKey = `bienvenida_${numeroReal}`;
+
+        const mensajePago =
             `*Pago rápido 💰*\nBeneficiario: José de Jesús Conchas Rodriguez\n` +
             `Banco: Scotiabank\nCLABE: 044320256058512878\nTarjeta: 5579209154257585`;
 
-        const mensajeDinamicaVideo = 
-            `Por favor mira nuestro video de bienvenida (30s): ${VIDEO_BIENVENIDA_URL}`;
+        const mensajeDinamicaVideo = `Por favor mira nuestro video de bienvenida (30s): ${VIDEO_BIENVENIDA_URL}`;
 
-        const bienvenidaKey = `bienvenida_${numeroReal}`;
-
-        // -----------------------------------------
-        // 📌 1. IMAGEN DE PEDIDO
-        // -----------------------------------------
-        if (msg.message.imageMessage &&
-            (textoSinTildes.includes("pedido") || textoSinTildes.includes("orden"))) {
-
+        // -----------------------------------------------------
+        // 1. IMAGEN DE PEDIDO
+        // -----------------------------------------------------
+        if (
+            msg.message.imageMessage &&
+            (textoSinTildes.includes("pedido") || textoSinTildes.includes("orden"))
+        ) {
             await notificarSlack(numeroReal, texto);
-            await enviarTextoWasender(numeroReal, 
+            await enviarTextoWasender(
+                numeroReal,
                 `Recibí tu pedido 📦 Una asesora te contactará.\n\n${mensajePago}`
             );
             continue;
         }
 
-        // -----------------------------------------
-        // 📌 2. PAGO / DINÁMICA
-        // -----------------------------------------
-        const buscaPago =
-            ["pago", "anticipo", "deposito", "transferencia", "cuenta"]
-            .some(w => textoSinTildes.includes(w));
+        // -----------------------------------------------------
+        // 2. PAGO
+        // -----------------------------------------------------
+        const buscaPago = ["pago", "anticipo", "deposito", "transferencia", "cuenta"].some((w) =>
+            textoSinTildes.includes(w)
+        );
 
         if (buscaPago) {
             await enviarTextoWasender(numeroReal, mensajePago);
@@ -217,9 +209,12 @@ async function procesarMensajes(body) {
             continue;
         }
 
-        const buscaDinamica =
-            ["mecanica", "dinamica", "como", "proceso", "pedido", "orden", "comprar"]
-            .some(w => textoSinTildes.includes(w));
+        // -----------------------------------------------------
+        // 3. MECÁNICA / DINÁMICA
+        // -----------------------------------------------------
+        const buscaDinamica = ["mecanica", "dinamica", "proceso", "orden", "pedido"].some((w) =>
+            textoSinTildes.includes(w)
+        );
 
         if (buscaDinamica) {
             await enviarTextoWasender(numeroReal, mensajeDinamicaVideo);
@@ -227,42 +222,37 @@ async function procesarMensajes(body) {
             continue;
         }
 
-        // -----------------------------------------
-        // 📌 3. BIENVENIDA NUEVO
-        // -----------------------------------------
+        // -----------------------------------------------------
+        // 4. MENSAJE DE BIENVENIDA ÚNICO
+        // -----------------------------------------------------
         if (!mensajesProcesados.has(bienvenidaKey)) {
-
-            await enviarTextoWasender(numeroReal,
-                `¡Hola! Soy Paola de Karen's Clothes ✨\n` +
-                `¿Tienes tienda o manejas por pedido?\n\n` +
-                `Nuestra página oficial: https://www.facebook.com/share/19928ADEfk/\n\n` +
-                mensajeDinamicaVideo
+            await enviarTextoWasender(
+                numeroReal,
+                `¡Hola! Soy Paola de Karen's Clothes ✨\n¿Tienes tienda o manejas por pedido?\n\n` +
+                    `Nuestra página oficial: https://www.facebook.com/share/19928ADEfk/`
             );
 
-            await enviarTextoWasender(numeroReal,
+            await enviarTextoWasender(numeroReal, mensajeDinamicaVideo);
+
+            await enviarTextoWasender(
+                numeroReal,
                 `🎁 CUPONES:\n` +
-                `• Compra mínima $4000 → Precio de corrida (−$10 por prenda)\n` +
-                `• Compra mínima $6000 → Precio de paquete (−$20 por prenda)`
+                `• Compra mínima $4000 → Precio de corrida (–$10 por prenda)\n` +
+                `• Compra mínima $6000 → Precio de paquete (–$20 por prenda)`
             );
 
             mensajesProcesados.add(bienvenidaKey);
             continue;
         }
 
-        // -----------------------------------------
-        // 📌 4. IA / ESCALAMIENTO
-        // -----------------------------------------
+        // -----------------------------------------------------
+        // 5. ESCALAMIENTO (IA)
+        // -----------------------------------------------------
         const respuestaIA = await obtenerRespuestaOpenRouter(texto, "Contexto de ventas");
 
         if (respuestaIA.includes("COMANDO_ESCALAR")) {
-
             await notificarSlack(numeroReal, texto);
-
-            await enviarTextoWasender(
-                numeroReal,
-                `Enseguida te conecto con una vendedora experta 😊`
-            );
-
+            await enviarTextoWasender(numeroReal, `Ya te conecto con una vendedora 😊`);
             continue;
         }
 
