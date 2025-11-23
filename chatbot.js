@@ -1,6 +1,6 @@
 import express from "express";
 import axios from "axios";
-import fs from "fs/promises"; // 🚩 CRÍTICO: Módulo para manejar archivos (Persistencia)
+import fs from "fs/promises"; 
 
 // ----------------------------------------------------
 // 1. CONFIGURACIÓN: Variables de Entorno y Constantes
@@ -20,20 +20,18 @@ const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
 // 🚩 URLS DE MEDIOS DEFINITIVAS 🚩
 const VIDEO_BIENVENIDA_URL = 'https://drive.google.com/file/d/1W90iW4nJy7pqvraA--FJTT_HQQw3h4uJ/view'; 
-const URL_MECANICA_COMPRA = 'https://drive.google.com/file/d/163YfomYIO9JojMvQGy7VUa0EkV1tXKLe/view?usp=sharing'; 
+// const URL_MECANICA_COMPRA = 'https://drive.google.com/file/d/163YfomYIO9JojMvQGy7VUa0EkV1tXKLe/view?usp=sharing'; 
 
-const PAUSA_ENTRE_MENSAJES = 6000; // 6 segundos (para evitar el error anti-flood de Wasender)
-const MEMORY_FILE = 'welcome_memory.json'; // Nombre del archivo de memoria
+const PAUSA_ENTRE_MENSAJES = 6000; // 6 segundos
+const MEMORY_FILE = 'welcome_memory.json'; 
 
 // Control de concurrencia y contexto
 const mensajesProcesados = new Set();
 
-// 🚩 CRÍTICO: Mapa para controlar si la bienvenida ha sido enviada (Cargado desde archivo)
 let bienvenidaEnviada = new Map(); 
-// Para marcar que ya hubo un intento de escalamiento (evita saludos recurrentes)
 const conversacionEnEscalamiento = new Map(); 
 
-// Palabras clave de producto/compra (solo producto, las frases claras se manejan en Prioridad 0)
+// Palabras clave de producto/compra 
 const palabrasProducto = ['modelo', 'talla', 'precio', 'vestido', 'falda', 'blusa', 'pantalón', 'pantalon', 'ropa', 'artículo', 'articulo', 'catalogo', 'stock']; 
 // Palabras críticas para escalamiento inmediato (Prioridad 0.0)
 const palabrasCriticas = ['devolución', 'devolucion', 'regresar', 'cambio', 'reembolso', 'reembolsar', 'queja', 'garantía', 'garantia']; 
@@ -205,11 +203,20 @@ async function procesarMensajes(body) {
             // 1. **Extracción y Limpieza Agresiva:**
             let numero = numeroRaw.replace(/[^0-9]/g, '');
             
-            // 2. **Normalización a 12 dígitos (521 + 10 dígitos) si es necesario:**
+            // 2. **Normalización CRÍTICA a 12 dígitos (521 + 10 dígitos) si es necesario:**
+            
             if (numero.length === 10 && !numero.startsWith('52')) {
+                // Caso A: Número normal de 10 dígitos. Lo normalizamos a 521.
                 numero = '521' + numero;
                 console.log(`✅ Número normalizado: Forzado a 521 + 10 dígitos -> ${numero}`);
-            } 
+            } else if (numero.length > 12 && numeroRaw.endsWith('@lid')) {
+                // Caso B: Es un ID de Lista de Difusión (@lid). No se puede normalizar para el enlace.
+                console.log(`⚠️ Alerta: ID de Lista de Difusión (@lid) detectado. No se puede normalizar el enlace wa.me.`);
+            } else if (numero.length === 12 && numero.startsWith('521')) {
+                // Caso C: Ya está en el formato correcto (ej: 5213320851591)
+                console.log(`✅ Número ya normalizado: ${numero}`);
+            }
+            // -------------------------------------------
 
             const textoLower = texto.toLowerCase();
             const textoSinTildes = stripAccents(textoLower); 
@@ -262,9 +269,9 @@ async function procesarMensajes(body) {
                                      textoSinTildes.includes('para comprar') ||
                                      textoSinTildes.includes('compraria') ||
                                      textoSinTildes.includes('dame el precio') ||
-                                     textoSinTildes.includes('pedido') || // <= Mantener estas aquí
-                                     textoSinTildes.includes('orden') || // <= Mantener estas aquí
-                                     textoSinTildes.includes('comprar'); // <= Mantener estas aquí
+                                     textoSinTildes.includes('pedido') ||
+                                     textoSinTildes.includes('orden') ||
+                                     textoSinTildes.includes('comprar'); 
 
             const esImagenDePedido = (
                 msgObj.message?.imageMessage && 
@@ -308,6 +315,25 @@ async function procesarMensajes(body) {
             }
 
             // -------------------------------------------
+            // 🚩 1.5 PRIORIDAD: DESCARTE POR CIERRE O AGRADECIMIENTO 🚩
+            // -------------------------------------------
+            // Esto evita que 'gracias' caiga en la Prioridad 2 (Video de dinámica).
+            const buscaCierre = textoSinTildes.includes('gracias') ||
+                                textoSinTildes.includes('sale') ||
+                                textoSinTildes.includes('bye') ||
+                                textoSinTildes.includes('saludos');
+
+            if (buscaCierre && !conversacionEnEscalamiento.has(numero)) {
+                console.log(`[FLOW] Mensaje de cierre/agradecimiento detectado de ${numero}.`);
+                await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
+                
+                const mensajeCierre = `¡Un gusto saludarte! Estamos aquí para lo que necesites. Que tengas un excelente día. 😊`;
+                await enviarTextoWasender(numero, mensajeCierre);
+                
+                continue; 
+            }
+            
+            // -------------------------------------------
             // 🚩 2. PRIORIDAD: MECÁNICA DE COMPRA / PAGO (RESPUESTA RÁPIDA) 🚩
             // -------------------------------------------
             
@@ -316,7 +342,7 @@ async function procesarMensajes(body) {
                               textoSinTildes.includes('scotiabank') || textoSinTildes.includes('transferencia') ||
                               textoSinTildes.includes('deposito') || textoSinTildes.includes('cuenta');
             
-            // LÓGICA DE DINÁMICA/VIDEO (SIN PALABRAS DE ESCALAMIENTO CLARO)
+            // LÓGICA DE DINÁMICA/VIDEO (SIN PALABRAS DE ESCALAMIENTO CLARO como 'pedido' u 'orden')
             const buscaDinamica = textoSinTildes.includes('mecanica') || 
                                    textoSinTildes.includes('dinamica') || 
                                    textoSinTildes.includes('como se realiza') ||
