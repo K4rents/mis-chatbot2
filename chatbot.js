@@ -135,6 +135,7 @@ async function enviarTextoWasender(numero, text) {
         console.log(`💬 Mensaje de texto enviado a ${numero}. Respuesta: ${text.substring(0, 50)}...`);
     } catch (error) {
         console.error('❌ Error al enviar mensaje de texto:', error.response?.data || error.message);
+        throw new Error("WASENDER_FAIL"); // Lanza un error para ser capturado por el flujo principal
     }
 }
 
@@ -356,7 +357,7 @@ async function procesarMensajes(body) {
             // -------------------------------------------
             if (conversacionEnEscalamiento.has(numero)) {
                 
-                // V14: BYPASS CONDITIONS (Cierre, Producto, Envío, INFO GENÉRICA, SALUDO, DINÁMICA)
+                // V15: BYPASS CONDITIONS (Cierre, Producto, Envío, INFO GENÉRICA, SALUDO, DINÁMICA)
                 if (buscaCierre || buscaEnvio || buscaProductoGenerico || (buscaInformesGenerico && !esEspecifico) || esSaludoSimple || esPreguntaInformacional) {
                     console.log(`⭐ BYPASS P0.2: Cierre/Producto/Envio/Info/Saludo/Dinamica detectado. Cayendo a su prioridad específica.`);
                     // Permitimos que el flujo continúe sin "continue" para que P0.5/P0.6/P1/P1.1/P1.5/P2 se ejecuten.
@@ -371,7 +372,12 @@ async function procesarMensajes(body) {
                     if (buscaReenvioPago) {
                         console.log("💳 Sobreescribiendo bloqueo: Re-enviando solo datos de pago (mensajePago).");
                         await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
-                        await enviarTextoWasender(numero, mensajePago);
+                        
+                        try {
+                            await enviarTextoWasender(numero, mensajePago);
+                        } catch (e) {
+                             console.error('⚠️ Fallo en enviar mensaje P0.2 Pago, se continúa el flujo:', e.message);
+                        }
                     } else {
                         console.log("🤫 Silenciando bot para intervención humana (mensaje no relacionado a pago).");
                         // No response to avoid annoyance.
@@ -396,7 +402,11 @@ async function procesarMensajes(body) {
                     `Ya hemos notificado a nuestro equipo de *Atención al Cliente* sobre tu *devolución/cambio*. \n` + 
                     `En breve una persona te atenderá para *recabar los datos necesarios* y ayudarte con el proceso.`;
                 
-                await enviarTextoWasender(numero, respuestaCritica);
+                try {
+                    await enviarTextoWasender(numero, respuestaCritica);
+                } catch (e) {
+                    console.error('⚠️ Fallo en enviar mensaje P0.0 Crítico, se continúa el flujo:', e.message);
+                }
                 
                 conversacionEnEscalamiento.set(numero, Date.now()); // Establece el estado de escalamiento
                 if(!bienvenidaEnviada.has(numero)) {
@@ -421,7 +431,11 @@ async function procesarMensajes(body) {
                 await notificarSlack(numero, `INTENCIÓN DE COMPRA/CONTACTO/SEGMENTACIÓN: "${texto}"`);
                 await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
                 
-                await enviarTextoWasender(numero, mensajeEscalaCompleta);
+                try {
+                    await enviarTextoWasender(numero, mensajeEscalaCompleta);
+                } catch (e) {
+                     console.error('⚠️ Fallo en enviar mensaje P0 Completo, se continúa el flujo:', e.message);
+                }
                 
                 conversacionEnEscalamiento.set(numero, Date.now()); // Establece el estado de escalamiento
                 if(!bienvenidaEnviada.has(numero)) {
@@ -437,13 +451,18 @@ async function procesarMensajes(body) {
             
             if (buscaEnvio) {
                 console.log(`🚨 ESCALANDO SUAVE a humano por solicitud de ENVÍO/LOGÍSTICA: ${numero}.`);
-                // Solo alertamos si no estaba previamente en escalamiento (P0.2 bypass).
-                if (!conversacionEnEscalamiento.has(numero)) {
-                    await notificarSlack(numero, `PREGUNTA SOBRE ENVÍO/LOGÍSTICA: "${texto}"`);
-                }
+                
+                // V15 FIX: Siempre alertar a Slack al detectar intención de escalamiento, 
+                // ya que el contexto ha cambiado (Envío).
+                await notificarSlack(numero, `PREGUNTA SOBRE ENVÍO/LOGÍSTICA: "${texto}"`);
+                
                 await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
                 
-                await enviarTextoWasender(numero, mensajeEnvioEscalaSuave);
+                try {
+                    await enviarTextoWasender(numero, mensajeEnvioEscalaSuave);
+                } catch (e) {
+                    console.error('⚠️ Fallo en enviar mensaje P0.5 Envío, se continúa el flujo:', e.message);
+                }
                 
                 conversacionEnEscalamiento.set(numero, Date.now()); // Establece el estado de escalamiento
                 if(!bienvenidaEnviada.has(numero)) {
@@ -459,13 +478,19 @@ async function procesarMensajes(body) {
             
             if (buscaProductoGenerico) {
                 console.log(`🚨 ESCALANDO SUAVE a humano por solicitud de PRODUCTO/TALLA/PRECIO (P0.6): ${numero}.`);
-                // Solo alertamos si no estaba previamente en escalamiento (P0.2 bypass).
-                if (!conversacionEnEscalamiento.has(numero)) {
-                    await notificarSlack(numero, `PREGUNTA SOBRE PRODUCTO/TALLA/PRECIO: "${texto}"`);
-                }
+                
+                // V15 FIX: Siempre alertar a Slack al detectar intención de escalamiento, 
+                // ya que el contexto ha cambiado (Producto/Catálogo).
+                await notificarSlack(numero, `PREGUNTA SOBRE PRODUCTO/TALLA/PRECIO: "${texto}"`);
+                
                 await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
                 
-                await enviarTextoWasender(numero, mensajeProductoEscalaSuave);
+                // V15 FIX: Añadir try/catch para asegurar que el flujo continúe si el mensaje falla.
+                try {
+                    await enviarTextoWasender(numero, mensajeProductoEscalaSuave);
+                } catch (e) {
+                    console.error('⚠️ Fallo en enviar mensaje P0.6 Producto, se continúa el flujo:', e.message);
+                }
                 
                 conversacionEnEscalamiento.set(numero, Date.now()); // Establece el estado de escalamiento
                 if(!bienvenidaEnviada.has(numero)) {
@@ -497,13 +522,21 @@ async function procesarMensajes(body) {
                 // 1. Send Payment Data (if requested)
                 if (buscaPagoDatos) {
                     await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
-                    await enviarTextoWasender(numero, mensajePago);
+                    try {
+                        await enviarTextoWasender(numero, mensajePago);
+                    } catch (e) {
+                         console.error('⚠️ Fallo en enviar mensaje P2 Pago, se continúa el flujo:', e.message);
+                    }
                 }
                 
-                // 2. Send Dynamic Video (ALWAYS send if requested, based on user instruction)
+                // 2. Send Dynamic Video (ALWAYS send if requested)
                 if (buscaDinamica) { 
                     await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
-                    await enviarTextoWasender(numero, mensajeDinamicaVideo);
+                    try {
+                        await enviarTextoWasender(numero, mensajeDinamicaVideo);
+                    } catch (e) {
+                         console.error('⚠️ Fallo en enviar mensaje P2 Dinámica, se continúa el flujo:', e.message);
+                    }
                     videoDinamicaEnviada.set(numero, true); // Mark state for memory/other flows
                 }
                 
@@ -525,7 +558,11 @@ async function procesarMensajes(body) {
                 console.log(`[FLOW] Mensaje de cierre/agradecimiento/acuse de recibo detectado de ${numero}. Enviando cierre simple.`);
                 await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
                 
-                await enviarTextoWasender(numero, mensajeCierrePuro);
+                try {
+                    await enviarTextoWasender(numero, mensajeCierrePuro);
+                } catch (e) {
+                    console.error('⚠️ Fallo en enviar mensaje P1.5 Cierre, se continúa el flujo:', e.message);
+                }
                 
                 continue; 
             }
@@ -538,7 +575,11 @@ async function procesarMensajes(body) {
                 console.log(`[FLOW] Saludo simple de número EXISTENTE. Enviando saludo recurrente y video.`);
                 await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
                 
-                await enviarTextoWasender(numero, mensajeSaludoExistente);
+                try {
+                    await enviarTextoWasender(numero, mensajeSaludoExistente);
+                } catch (e) {
+                     console.error('⚠️ Fallo en enviar mensaje P1 Saludo, se continúa el flujo:', e.message);
+                }
                 
                 continue; 
             } else if (esSaludoSimple && bienvenidaEnviada.has(numero) && conversacionEnEscalamiento.has(numero)) {
@@ -546,7 +587,11 @@ async function procesarMensajes(body) {
                 console.log(`[FLOW] Saludo simple de número EXISTENTE en estado de escalamiento (P0.2 Bypass). Enviando saludo recurrente.`);
                 await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
                 
-                await enviarTextoWasender(numero, mensajeSaludoExistente);
+                try {
+                    await enviarTextoWasender(numero, mensajeSaludoExistente);
+                } catch (e) {
+                    console.error('⚠️ Fallo en enviar mensaje P1 Saludo con Escal, se continúa el flujo:', e.message);
+                }
                 
                 continue; 
             }
@@ -561,7 +606,11 @@ async function procesarMensajes(body) {
                 await notificarSlack(numero, `PIDE INFORMES ESPECÍFICOS (Producto/Pedido): "${texto}"`);
                 await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
                 
-                await enviarTextoWasender(numero, mensajeProductoEscalaSuave);
+                try {
+                    await enviarTextoWasender(numero, mensajeProductoEscalaSuave);
+                } catch (e) {
+                    console.error('⚠️ Fallo en enviar mensaje P1.1 Específico, se continúa el flujo:', e.message);
+                }
                 
                 conversacionEnEscalamiento.set(numero, Date.now()); // Establece el estado de escalamiento
                 if(!bienvenidaEnviada.has(numero)) {
@@ -574,6 +623,7 @@ async function procesarMensajes(body) {
                 // SCENARIO B: INFORMACIÓN GENÉRICA (Forzar Bienvenida Completa)
                 console.log(`[FLOW] Solicitud de INFORMES/INFORMACION GENÉRICA detectada de ${numero}. Enviando Bienvenida Completa.`);
                 
+                // La bienvenida completa ya contiene control de errores interno en sus llamadas a Wasender
                 await enviarBienvenidaCompleta(numero); 
                 
                 continue; 
@@ -587,6 +637,7 @@ async function procesarMensajes(body) {
             if (!bienvenidaEnviada.has(numero)) { 
                 console.log(`[FLOW] Cliente NUEVO (DEFAULT). Enviando flujo de bienvenida COMPLETA.`);
                 
+                // La bienvenida completa ya contiene control de errores interno en sus llamadas a Wasender
                 await enviarBienvenidaCompleta(numero); 
                 
                 continue;
@@ -625,7 +676,11 @@ async function procesarMensajes(body) {
             
             if (respuesta) {
                  await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES)); 
-                await enviarTextoWasender(numero, respuesta);
+                try {
+                    await enviarTextoWasender(numero, respuesta);
+                } catch (e) {
+                    console.error('⚠️ Fallo en enviar mensaje P4 IA/Escalada, se continúa el flujo:', e.message);
+                }
             }
         }
     } catch (e) {
