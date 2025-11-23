@@ -260,7 +260,7 @@ async function procesarMensajes(body) {
             }
             
             // -------------------------------------------
-            // 🚩 0. PRIORIDAD MÁXIMA: ESCALAMIENTO POR PEDIDO CLARO / IMAGEN 🚩
+            // 🚩 0. PRIORIDAD MÁXIMA: ESCALAMIENTO POR PEDIDO CLARO / CONTACTO / IMAGEN 🚩
             // -------------------------------------------
             const buscaPedidoClaro = textoSinTildes.includes('quiero hacer un pedido') ||
                                      textoSinTildes.includes('hacer un pedido') ||
@@ -271,8 +271,14 @@ async function procesarMensajes(body) {
                                      textoSinTildes.includes('pedido') ||
                                      textoSinTildes.includes('orden') ||
                                      textoSinTildes.includes('comprar') ||
-                                     textoSinTildes.includes('envio') || // <--- CORRECCIÓN 1: Agregar ENVÍO
-                                     textoSinTildes.includes('cuanto');  // <--- CORRECCIÓN 1: Agregar CUANTO (Costo/Precio)
+                                     textoSinTildes.includes('envio') || 
+                                     textoSinTildes.includes('cuanto') ||
+                                     // --- CORRECCIÓN FINAL: CONTACTO HUMANO ---
+                                     textoSinTildes.includes('contactar a la persona') || 
+                                     textoSinTildes.includes('como contacto') ||          
+                                     textoSinTildes.includes('quiero hablar con') ||     
+                                     textoSinTildes.includes('dame un asesor');         
+
 
             const esImagenDePedido = (
                 msgObj.message?.imageMessage && 
@@ -280,8 +286,8 @@ async function procesarMensajes(body) {
             );
 
             if (esImagenDePedido || buscaPedidoClaro) {
-                console.log(`🚨 ESCALANDO a humano por intencion de PEDIDO/COMPRA/ENVÍO de ${numero}.`);
-                await notificarSlack(numero, `INTENCIÓN DE COMPRA CLARA/IMAGEN/ENVÍO: "${texto}"`);
+                console.log(`🚨 ESCALANDO a humano por intencion de PEDIDO/COMPRA/ENVÍO/CONTACTO de ${numero}.`);
+                await notificarSlack(numero, `INTENCIÓN DE COMPRA CLARA/IMAGEN/ENVÍO/CONTACTO: "${texto}"`);
                 await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
                 
                 const respuestaEscala = `¡Excelente! 🛒 Con gusto te ayudo a finalizar tu compra. Estoy conectando tu conversación con una vendedora experta para confirmar stock, tallas y resolver cualquier duda. Te atenderán en breve. ¡Gracias! 😊\n\n${mensajePago}`;
@@ -318,11 +324,11 @@ async function procesarMensajes(body) {
             // -------------------------------------------
             // 🚩 1.5 PRIORIDAD: DESCARTE POR CIERRE O AGRADECIMIENTO 🚩
             // -------------------------------------------
-            // Esto evita que 'gracias' caiga en la Prioridad 2 (Video de dinámica).
+            
             const buscaCierre = textoSinTildes.includes('gracias') ||
-                                // Eliminamos 'sale' para evitar confusión con "¿en cuanto sale?"
+                                // 'sale' se eliminó para evitar confusión con "¿en cuanto sale?"
                                 textoSinTildes.includes('bye') ||
-                                textoSinTildes.includes('saludos'); // <--- CORRECCIÓN 2: Eliminación de 'sale'
+                                textoSinTildes.includes('saludos');
 
             if (buscaCierre && !conversacionEnEscalamiento.has(numero)) {
                 console.log(`[FLOW] Mensaje de cierre/agradecimiento detectado de ${numero}.`);
