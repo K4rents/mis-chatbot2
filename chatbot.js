@@ -1,8 +1,3 @@
-¡Claro! Aquí tienes el código completo y actualizado, incluyendo las pequeñas mejoras que discutimos para la detección de la dinámica de compra y la leyenda amable del video, para que solo tengas que copiar y pegar.
-
-🤖 Chatbot Completo y Actualizado
-JavaScript
-
 import express from "express";
 import axios from "axios";
 
@@ -264,3 +259,4 @@ app.post("/webhook", (req, res) => {
 
 // ---------------------- RUN ----------------------
 app.listen(PORT, () => console.log(`🤖 Bot en puerto ${PORT}`));
+
