@@ -1,6 +1,6 @@
 import express from "express";
 import axios from "axios";
-import fs from "fs/promises"; 
+import fs from "fs/promises"; // 🚩 CRÍTICO: Módulo para manejar archivos (Persistencia)
 
 // ----------------------------------------------------
 // 1. CONFIGURACIÓN: Variables de Entorno y Constantes
@@ -10,7 +10,6 @@ app.use(express.json());
 
 const PORT = process.env.PORT || 10000;
 
-// Asegúrese de que estas variables de entorno estén configuradas en su servidor
 const WASENDER_API = process.env.WASENDER_API;
 const WASENDER_API_KEY = process.env.WASENDER_API_KEY;
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
@@ -21,62 +20,24 @@ const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
 // 🚩 URLS DE MEDIOS DEFINITIVAS 🚩
 const VIDEO_BIENVENIDA_URL = 'https://drive.google.com/file/d/1W90iW4nJy7pqvraA--FJTT_HQQw3h4uJ/view'; 
+const URL_MECANICA_COMPRA = 'https://drive.google.com/file/d/163YfomYIO9JojMvQGy7VUa0EkV1tXKLe/view?usp=sharing'; 
 
-const PAUSA_ENTRE_MENSAJES = 6000; // 6 segundos
-const MEMORY_FILE = 'welcome_memory.json'; 
+const PAUSA_ENTRE_MENSAJES = 6000; // 6 segundos (para evitar el error anti-flood de Wasender)
+const MEMORY_FILE = 'welcome_memory.json'; // Nombre del archivo de memoria
 
 // Control de concurrencia y contexto
 const mensajesProcesados = new Set();
 
+// 🚩 CRÍTICO: Mapa para controlar si la bienvenida ha sido enviada (Cargado desde archivo)
 let bienvenidaEnviada = new Map(); 
+// Para marcar que ya hubo un intento de escalamiento (evita saludos recurrentes)
 const conversacionEnEscalamiento = new Map(); 
 
-// Palabras clave de producto/compra (Usadas para detectar "información específica")
-const palabrasProducto = ['modelo', 'talla', 'precio', 'vestido', 'falda', 'blusa', 'pantalón', 'pantalon', 'ropa', 'artículo', 'articulo', 'catalogo', 'stock', 'pedido', 'compra']; 
+// Palabras clave de producto/compra (solo producto, las frases claras se manejan en Prioridad 0)
+const palabrasProducto = ['modelo', 'talla', 'precio', 'vestido', 'falda', 'blusa', 'pantalón', 'pantalon', 'ropa', 'artículo', 'articulo', 'catalogo', 'stock']; 
 // Palabras críticas para escalamiento inmediato (Prioridad 0.0)
 const palabrasCriticas = ['devolución', 'devolucion', 'regresar', 'cambio', 'reembolso', 'reembolsar', 'queja', 'garantía', 'garantia']; 
 
-// --- CONSTANTES DE MENSAJES ---
-const mensajePago = 
-    `*¡ANTICIPO O PAGO RÁPIDO!* 💰\n` +
-    `Si deseas asegurar tu pedido o hacer un anticipo, puedes usar nuestros datos de Scotiabank:\n\n` +
-    `*👤 BENEFICIARIO:* José de Jesús Conchas Rodriguez\n` + 
-    `*🏦 BANCO:* Scotiabank\n` +
-    `*CLABE:* **044320256058512878**\n` +
-    `*Tarjeta:* **5579209154257585**\n\n` +
-    `_Recuerda enviar tu comprobante al chat para que tu pedido avance._`;
-    
-// --- MENSAJE DE ESCALAMIENTO MÁXIMO OPTIMIZADO PARA CONFIANZA (INCLUYE DATOS DE PAGO) ---
-const mensajeEscalaCompleta = 
-    `¡Excelente! 🛒 Ya te estoy enlazando con nuestra *vendedora experta* para finalizar tu compra. Ella confirmará *stock*, *tallas* y resolverá cualquier duda. ¡Te atenderán de inmediato! 😊\n\n${mensajePago}`;
-
-// 🚩 MENSAJE PARA ESCALAMIENTO SUAVE DE ENVÍO (P0.5) OPTIMIZADO PARA CONFIANZA (SIN PAGO) 🚩
-const mensajeEnvioEscalaSuave = 
-    `¡Excelente! 📦 Ya te estoy enlazando con nuestra *vendedora experta*. Ella cotizará el *envío* y confirmará la cobertura. ¡Te atenderán de inmediato! 😊`;
-
-// 🚩 MENSAJE PARA ESCALAMIENTO SUAVE DE PRODUCTO (P0.6) OPTIMIZADO PARA CONFIANZA (SIN PAGO) 🚩
-const mensajeProductoEscalaSuave = 
-    `¡Excelente! 👕 Ya te estoy enlazando con nuestra *vendedora experta*. Ella confirmará el *stock* y *talla* o resolverá cualquier otra duda que tengas. ¡Te atenderán de inmediato! 😊`;
-    
-// MENSAJE COMBINADO DE REENGANCHE Y DINÁMICA (P1.5) 
-const mensajeDinamicaVideo = 
-    `Seguimos en línea para lo que necesites. 😊\n\n` +
-    `Por favor, tómate solo 30 segundos para ver nuestro video de bienvenida, ahí te explico nuestra dinámica: ${VIDEO_BIENVENIDA_URL}`;
-    
-const mensajeSaludoExistente = 
-    `¡Hola, bienvenida de nuevo! 😊 ¿En qué puedo ayudarte hoy? Recuerda que nuestra dinámica de compra está en este video: ${VIDEO_BIENVENIDA_URL}`;
-
-const bienvenidaTextoParte1 = 
-    `¡Hola, bienvenida a *Karen's Clothes*! Soy **Paola** y estoy encantada de atenderte. ✨\n\n` +
-    `¿Tienes tienda o te manejas sobre pedido?\n\n` + 
-    `A continuación, te dejo nuestro link de nuestra página oficial: https://www.facebook.com/share/19928ADEfk/\n\n` + 
-    mensajeDinamicaVideo; 
-
-const bienvenidaTextoParte2 = 
-    `¡Realiza tu **primera compra** y llévate un cupón! 🎁\n\n` +
-    `1.-Cupón: Realiza una compra mínima de *$4000 MXN* se brinda el precio de corrida que son 10 pesos menos por prenda del precio de mayoreo\n\n` +
-    `2.-Cupón: Realiza una compra mínima de *$6000 MXN* se brinda el precio de paquete que son 20 pesos menos por prenda del precio de mayoreo`;
-    
 // ----------------------------------------------------
 // 2. SERVICIOS EXTERNOS Y UTILIDADES
 // ----------------------------------------------------
@@ -166,28 +127,6 @@ async function notificarSlack(numero, mensajeCliente) {
     }
 }
 
-/**
- * Utilidad: Envía el mensaje de Bienvenida Completa (Parte 1 y 2).
- */
-async function enviarBienvenidaCompleta(numero) {
-    await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
-    
-    // --- MENSAJE DE BIENVENIDA (PRIMER PARTE) ---
-    await enviarTextoWasender(numero, bienvenidaTextoParte1);
-    
-    await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
-    
-    // --- MENSAJE DE OFERTA (SEGUNDA PARTE) ---
-    await enviarTextoWasender(numero, bienvenidaTextoParte2);
-    
-    // Marca como enviado si es la primera vez
-    if(!bienvenidaEnviada.has(numero)) {
-        bienvenidaEnviada.set(numero, true);
-        await guardarMemoria();
-    }
-}
-
-
 async function obtenerRespuestaOpenRouter(mensaje, contexto) {
     try {
         const promptCompleto = [
@@ -266,23 +205,27 @@ async function procesarMensajes(body) {
             // 1. **Extracción y Limpieza Agresiva:**
             let numero = numeroRaw.replace(/[^0-9]/g, '');
             
-            // 2. **Normalización CRÍTICA a 12 dígitos (521 + 10 dígitos) si es necesario:**
-            
+            // 2. **Normalización a 12 dígitos (521 + 10 dígitos) si es necesario:**
             if (numero.length === 10 && !numero.startsWith('52')) {
-                // Caso A: Número normal de 10 dígitos. Lo normalizamos a 521.
                 numero = '521' + numero;
                 console.log(`✅ Número normalizado: Forzado a 521 + 10 dígitos -> ${numero}`);
-            } else if (numero.length > 12 && numeroRaw.endsWith('@lid')) {
-                // Caso B: Es un ID de Lista de Difusión (@lid). No se puede normalizar para el enlace.
-                console.log(`⚠️ Alerta: ID de Lista de Difusión (@lid) detectado. No se puede normalizar el enlace wa.me.`);
-            } else if (numero.length === 12 && numero.startsWith('521')) {
-                // Caso C: Ya está en el formato correcto (ej: 5213320851591)
-                console.log(`✅ Número ya normalizado: ${numero}`);
-            }
-            // -------------------------------------------
+            } 
 
             const textoLower = texto.toLowerCase();
             const textoSinTildes = stripAccents(textoLower); 
+            
+            // --- CONSTANTES DE MENSAJES ---
+            const mensajePago = 
+                `*¡ANTICIPO O PAGO RÁPIDO!* 💰\n` +
+                `Si deseas asegurar tu pedido o hacer un anticipo, puedes usar nuestros datos de Scotiabank:\n\n` +
+                `*👤 BENEFICIARIO:* José de Jesús Conchas Rodriguez\n` + 
+                `*🏦 BANCO:* Scotiabank\n` +
+                `*CLABE:* **044320256058512878**\n` +
+                `*Tarjeta:* **5579209154257585**\n\n` +
+                `_Recuerda enviar tu comprobante al chat para que tu pedido avance._`;
+            const mensajeDinamicaVideo = 
+                `Por favor, tómate solo 30 segundos para ver nuestro video de bienvenida, ahí te explico nuestra dinámica: ${VIDEO_BIENVENIDA_URL}`;
+            const mensajeSaludoExistente = `¡Hola, bienvenida de nuevo! 😊 ¿En qué puedo ayudarte hoy? Recuerda que nuestra dinámica de compra está en este video: ${VIDEO_BIENVENIDA_URL}`;
             
             
             // -------------------------------------------
@@ -302,8 +245,7 @@ async function procesarMensajes(body) {
                 
                 await enviarTextoWasender(numero, respuestaCritica);
                 
-                // Desbloquear la conversación
-                conversacionEnEscalamiento.delete(numero);
+                conversacionEnEscalamiento.set(numero, true);
                 if(!bienvenidaEnviada.has(numero)) {
                     bienvenidaEnviada.set(numero, true);
                     await guardarMemoria();
@@ -312,96 +254,32 @@ async function procesarMensajes(body) {
             }
             
             // -------------------------------------------
-            // 🚩 2. PRIORIDAD: MECÁNICA DE COMPRA / PAGO (RESPUESTA RÁPIDA - VIDEO) 🚩
-            // (¡MOVIMIENTO CRÍTICO! Se prioriza el "cómo" o "proceso" sobre la venta directa)
+            // 🚩 0. PRIORIDAD MÁXIMA: ESCALAMIENTO POR PEDIDO CLARO / IMAGEN 🚩
             // -------------------------------------------
-            
-            // LÓGICA DE PAGO (RESTRINGIDA: Solo palabras de transacción directa)
-            const buscaPago = textoSinTildes.includes('scotiabank') || 
-                              textoSinTildes.includes('transferencia') ||
-                              textoSinTildes.includes('transfiero') || 
-                              textoSinTildes.includes('transferir') || 
-                              textoSinTildes.includes('deposito') || 
-                              textoSinTildes.includes('cuenta');
-            
-            // LÓGICA DE DINÁMICA/VIDEO - Captura preguntas de "cómo" o "proceso" 
-            const buscaDinamica = textoSinTildes.includes('mecanica') || 
-                                   textoSinTildes.includes('dinamica') || 
-                                   textoSinTildes.includes('como se realiza') ||
-                                   textoSinTildes.includes('realizo una compra') ||
-                                   textoSinTildes.includes('como') || 
-                                   textoSinTildes.includes('proceso') || 
-                                   textoSinTildes.includes('realizo') ||
-                                   textoSinTildes.includes('hago') ||
-                                   textoSinTildes.includes('hacer un pedido') ||
-                                   textoSinTildes.includes('pedido');
-
-                  
-            if (buscaPago || buscaDinamica) {
-                console.log(`[FLOW] Solicitud de Pago/Dinamica/Instrucciones de ${numero}.`);
-                await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
-                
-                // Si busca pago (datos bancarios), envía solo los datos de pago
-                if (buscaPago) await enviarTextoWasender(numero, mensajePago);
-                // Si busca dinámica (proceso), envía el video
-                if (buscaDinamica) await enviarTextoWasender(numero, mensajeDinamicaVideo);
-                
-                if(!bienvenidaEnviada.has(numero)) {
-                    bienvenidaEnviada.set(numero, true);
-                    await guardarMemoria();
-                }
-                conversacionEnEscalamiento.delete(numero); 
-                continue; 
-            }
-
-
-            // -------------------------------------------
-            // 🚩 0. PRIORIDAD MÁXIMA: ESCALAMIENTO POR PEDIDO CLARO / CONTACTO / IMAGEN / CONFIRMACIÓN DE PAGO 🚩
-            // (Ahora que ya se respondió el "cómo", se procede con la venta)
-            // -------------------------------------------
-            // NOTA: Se eliminan keywords de "proceso" ('como', 'hacer un pedido', 'pedido') para que P2 (Video Dinámica) las capture.
-            const buscaPedidoClaro = textoSinTildes.includes('quiero hacer un pedido') || // Clear Intent
+            const buscaPedidoClaro = textoSinTildes.includes('quiero hacer un pedido') ||
+                                     textoSinTildes.includes('hacer un pedido') ||
                                      textoSinTildes.includes('quiero comprar') ||
                                      textoSinTildes.includes('para comprar') ||
                                      textoSinTildes.includes('compraria') ||
                                      textoSinTildes.includes('dame el precio') ||
-                                     // Temas de Venta Directa 
-                                     textoSinTildes.includes('comprar') ||
-                                     textoSinTildes.includes('cuanto') ||
-                                     // Comandos y Solicitudes de Personal
-                                     textoSinTildes.includes('contactar a la persona') || 
-                                     textoSinTildes.includes('como contacto') ||          
-                                     textoSinTildes.includes('quiero hablar con') ||     
-                                     textoSinTildes.includes('dame un asesor') ||
-                                     textoSinTildes.includes('escalame') || 
-                                     textoSinTildes.includes('escalar') ||  
-                                     textoSinTildes.includes('vendedora') ||
-                                     textoSinTildes.includes('vendedor') || 
-                                     textoSinTildes.includes('asesor') ||
-                                     textoSinTildes === 'si' ||
-                                     textoSinTildes.includes('tienda') || 
-                                     textoSinTildes.includes('sobre pedido') ||
-                                     textoSinTildes.includes('manejo pedido') ||
-                                     // --- PALABRAS CLAVE CRÍTICAS DE CONFIRMACIÓN DE PAGO ---
-                                     textoSinTildes.includes('comprobante') ||
-                                     textoSinTildes.includes('captura') ||         
-                                     textoSinTildes.includes('transferencia'); 
-            
+                                     textoSinTildes.includes('pedido') || // <= Mantener estas aquí
+                                     textoSinTildes.includes('orden') || // <= Mantener estas aquí
+                                     textoSinTildes.includes('comprar'); // <= Mantener estas aquí
+
             const esImagenDePedido = (
                 msgObj.message?.imageMessage && 
-                (textoSinTildes.includes('pedido') || textoSinTildes.includes('orden') || textoSinTildes.includes('comprar') || textoSinTildes.includes('pago')) 
+                (textoSinTildes.includes('pedido') || textoSinTildes.includes('orden') || textoSinTildes.includes('comprar'))
             );
 
             if (esImagenDePedido || buscaPedidoClaro) {
-                console.log(`🚨 ESCALANDO a humano por intencion de COMPRA/CONTACTO/SEGMENTACIÓN CLARA de ${numero}.`);
-                await notificarSlack(numero, `INTENCIÓN DE COMPRA/CONTACTO/SEGMENTACIÓN: "${texto}"`);
+                console.log(`🚨 ESCALANDO a humano por intencion de PEDIDO/COMPRA de ${numero}.`);
+                await notificarSlack(numero, `INTENCIÓN DE COMPRA CLARA/IMAGEN: "${texto}"`);
                 await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
                 
-                // Envía el mensaje completo (INCLUYE DATOS DE PAGO)
-                await enviarTextoWasender(numero, mensajeEscalaCompleta);
+                const respuestaEscala = `¡Excelente! 🛒 Con gusto te ayudo a finalizar tu compra. Estoy conectando tu conversación con una vendedora experta para confirmar stock, tallas y resolver cualquier duda. Te atenderán en breve. ¡Gracias! 😊\n\n${mensajePago}`;
+                await enviarTextoWasender(numero, respuestaEscala);
                 
-                // Desbloquear la conversación
-                conversacionEnEscalamiento.delete(numero); 
+                conversacionEnEscalamiento.set(numero, true);
                 if(!bienvenidaEnviada.has(numero)) {
                     bienvenidaEnviada.set(numero, true);
                     await guardarMemoria();
@@ -410,82 +288,15 @@ async function procesarMensajes(body) {
             }
             
             // -------------------------------------------
-            // 🚩 0.5 PRIORIDAD: ESCALAMIENTO SUAVE POR ENVÍO (SIN DINERO) 🚩
-            // -------------------------------------------
-            const buscaEnvio = textoSinTildes.includes('envio') || textoSinTildes.includes('estafeta') || textoSinTildes.includes('paqueteria');
-            
-            if (buscaEnvio) {
-                console.log(`🚨 ESCALANDO SUAVE a humano por solicitud de ENVÍO/LOGÍSTICA: ${numero}.`);
-                await notificarSlack(numero, `PREGUNTA SOBRE ENVÍO/LOGÍSTICA: "${texto}"`);
-                await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
-                
-                // Usar el mensaje suave sin datos de pago
-                await enviarTextoWasender(numero, mensajeEnvioEscalaSuave);
-                
-                // Marcar como atendido si es nuevo
-                if(!bienvenidaEnviada.has(numero)) {
-                    bienvenidaEnviada.set(numero, true);
-                    await guardarMemoria();
-                }
-                conversacionEnEscalamiento.delete(numero); 
-                continue; 
-            }
-
-            // -------------------------------------------
-            // 🚩 0.6 PRIORIDAD: ESCALAMIENTO SUAVE POR PRODUCTO/TALLA (SIN DINERO) 🚩
-            // -------------------------------------------
-            const buscaProductoGenerico = palabrasProducto.some(keyword => textoSinTildes.includes(keyword));
-            
-            if (buscaProductoGenerico) {
-                console.log(`🚨 ESCALANDO SUAVE a humano por solicitud de PRODUCTO/TALLA/PRECIO (P0.6): ${numero}.`);
-                await notificarSlack(numero, `PREGUNTA SOBRE PRODUCTO/TALLA/PRECIO: "${texto}"`);
-                await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
-                
-                // Usar el nuevo mensaje suave sin datos de pago
-                await enviarTextoWasender(numero, mensajeProductoEscalaSuave);
-                
-                // Marcar como atendido si es nuevo
-                if(!bienvenidaEnviada.has(numero)) {
-                    bienvenidaEnviada.set(numero, true);
-                    await guardarMemoria();
-                }
-                conversacionEnEscalamiento.delete(numero); 
-                continue; 
-            }
-            
-            // -------------------------------------------
-            // 🚩 1.5 PRIORIDAD: DESCARTE POR CIERRE O AGRADECIMIENTO (Incluye reenganche) 🚩
-            // -------------------------------------------
-            
-            const buscaCierre = textoSinTildes.includes('gracias') ||
-                                textoSinTildes.includes('bye') ||
-                                textoSinTildes.includes('saludos') ||
-                                textoSinTildes === 'ok' || 
-                                textoSinTildes === 'va' || 
-                                textoSinTildes === 'vale' || 
-                                textoSinTildes === 'sale' || 
-                                textoSinTildes.includes('está bien') || 
-                                textoSinTildes.includes('esta bien'); 
-
-            if (buscaCierre && !conversacionEnEscalamiento.has(numero)) {
-                console.log(`[FLOW] Mensaje de cierre/agradecimiento/acuse de recibo detectado de ${numero}. Invitando a ver dinámica con reenganche.`);
-                await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
-                
-                // Envía el mensaje combinado (reenganche + video)
-                await enviarTextoWasender(numero, mensajeDinamicaVideo);
-                
-                continue; 
-            }
-            
-            // -------------------------------------------
-            // 1. PRIORIDAD: SALUDO SIMPLE DE CLIENTE EXISTENTE (MENSAJE CORTO) 
+            // 🚩 1. PRIORIDAD: SALUDO SIMPLE DE CLIENTE EXISTENTE (MENSAJE CORTO) 🚩
             // -------------------------------------------
             
             const esSaludoSimple = textoSinTildes.includes('hola') || 
                                    textoSinTildes.includes('hi') ||
                                    textoSinTildes.includes('buenos dias') ||
                                    textoSinTildes.includes('buenas tardes') ||
-                                   textoSinTildes.includes('buenas');
+                                   textoSinTildes.includes('buenas') ||
+                                   textoSinTildes.length < 10; 
             
             if (esSaludoSimple && bienvenidaEnviada.has(numero) && !conversacionEnEscalamiento.has(numero)) {
                 console.log(`[FLOW] Saludo simple de número EXISTENTE. Enviando saludo recurrente y video.`);
@@ -495,54 +306,71 @@ async function procesarMensajes(body) {
                 
                 continue; 
             }
+
+            // -------------------------------------------
+            // 🚩 2. PRIORIDAD: MECÁNICA DE COMPRA / PAGO (RESPUESTA RÁPIDA) 🚩
+            // -------------------------------------------
             
-            // -------------------------------------------
-            // 🚩 1.1 PRIORIDAD: INFORMES (BIFURCACIÓN GENÉRICO vs. ESPECÍFICO) 🚩
-            // -------------------------------------------
-            const buscaInformesGenerico = textoSinTildes.includes('informes') || 
-                                          textoSinTildes.includes('informacion') ||
-                                          textoSinTildes.includes('info') || 
-                                          textoSinTildes.includes('tienes informacion');
-
-            const esEspecifico = palabrasProducto.some(keyword => textoSinTildes.includes(keyword));
-
-            if (buscaInformesGenerico && esEspecifico) {
-                // SCENARIO A: INFORMACIÓN ESPECÍFICA (Escalada: Producto, Precio, Talla, Pedido, etc.)
-                console.log(`🚨 ESCALANDO (P1.1 ESPECÍFICO) a humano por solicitud de INFORMES ESPECÍFICOS: ${numero}.`);
-                await notificarSlack(numero, `PIDE INFORMES ESPECÍFICOS (Producto/Pedido): "${texto}"`);
+            // LÓGICA DE PAGO
+            const buscaPago = textoSinTildes.includes('pago') || textoSinTildes.includes('anticipo') || 
+                              textoSinTildes.includes('scotiabank') || textoSinTildes.includes('transferencia') ||
+                              textoSinTildes.includes('deposito') || textoSinTildes.includes('cuenta');
+            
+            // LÓGICA DE DINÁMICA/VIDEO (SIN PALABRAS DE ESCALAMIENTO CLARO)
+            const buscaDinamica = textoSinTildes.includes('mecanica') || 
+                                   textoSinTildes.includes('dinamica') || 
+                                   textoSinTildes.includes('como se realiza') ||
+                                   textoSinTildes.includes('realizo una compra') ||
+                                   textoSinTildes.includes('como') || 
+                                   textoSinTildes.includes('proceso') || 
+                                   textoSinTildes.includes('realizo'); 
+                  
+            if (buscaPago || buscaDinamica) {
+                console.log(`[FLOW] Solicitud de Pago/Dinamica de ${numero}.`);
                 await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
                 
-                // Usar el mensaje completo de Escalada (Incluye datos de pago si pide precio/pedido/etc)
-                await enviarTextoWasender(numero, mensajeEscalaCompleta);
+                if (buscaPago) await enviarTextoWasender(numero, mensajePago);
+                if (buscaDinamica) await enviarTextoWasender(numero, mensajeDinamicaVideo);
                 
-                // Marcar como atendido si es nuevo
                 if(!bienvenidaEnviada.has(numero)) {
                     bienvenidaEnviada.set(numero, true);
                     await guardarMemoria();
                 }
                 conversacionEnEscalamiento.delete(numero); 
                 continue; 
-                
-            } else if (buscaInformesGenerico) {
-                // SCENARIO B: INFORMACIÓN GENÉRICA (Forzar Bienvenida Completa)
-                console.log(`[FLOW] Solicitud de INFORMES/INFORMACION GENÉRICA detectada de ${numero}. Enviando Bienvenida Completa.`);
-                
-                await enviarBienvenidaCompleta(numero); 
-                
-                conversacionEnEscalamiento.delete(numero); 
-                continue; 
             }
-
             
             // -------------------------------------------
-            // 🚩 3. PRIORIDAD: LÓGICA DE BIENVENIDA COMPLETA (CLIENTE NUEVO - DEFAULT) 🚩
+            // 🚩 3. PRIORIDAD: LÓGICA DE BIENVENIDA COMPLETA (CLIENTE NUEVO) 🚩
             // -------------------------------------------
             
             if (!bienvenidaEnviada.has(numero)) { 
-                console.log(`[FLOW] Cliente NUEVO (DEFAULT). Enviando flujo de bienvenida COMPLETA.`);
+                console.log(`[FLOW] Cliente NUEVO. Enviando flujo de bienvenida COMPLETA.`);
                 
-                await enviarBienvenidaCompleta(numero); 
+                await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
                 
+                // --- MENSAJE DE BIENVENIDA (PRIMER PARTE) ---
+                const bienvenidaTextoParte1 = 
+                    `¡Hola, bienvenida a *Karen's Clothes*! Soy **Paola** y estoy encantada de atenderte. ✨\n\n` +
+                    `¿Tienes tienda o te manejas sobre pedido?\n\n` +
+                    `A continuación, te dejo nuestro link de nuestra página oficial: https://www.facebook.com/share/19928ADEfk/\n\n` + 
+                    mensajeDinamicaVideo; 
+
+                await enviarTextoWasender(numero, bienvenidaTextoParte1);
+                
+                await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
+                
+                // --- MENSAJE DE OFERTA (SEGUNDA PARTE) ---
+                const bienvenidaTextoParte2 = 
+                    `¡Realiza tu **primera compra** y llévate un cupón! 🎁\n\n` +
+                    `1.-Cupón: Realiza una compra mínima de *$4000 MXN* se brinda el precio de corrida que son 10 pesos menos por prenda del precio de mayoreo\n\n` +
+                    `2.-Cupón: Realiza una compra mínima de *$6000 MXN* se brinda el precio de paquete que son 20 pesos menos por prenda del precio de mayoreo`;
+                
+                await enviarTextoWasender(numero, bienvenidaTextoParte2);
+                
+                // Registramos la bienvenida en la memoria persistente
+                bienvenidaEnviada.set(numero, true);
+                await guardarMemoria(); 
                 continue;
             }
 
@@ -560,25 +388,29 @@ async function procesarMensajes(body) {
             if (respuestaIA.includes("COMANDO_ESCALAR") || respuestaIA.includes("COMANDO_ESCALAR_FALLO")) {
                 escalarAHumano = true;
             } else {
-                // 2. Refuerzo: Revisar la pregunta por Keywords 
+                // 2. Refuerzo: Revisar la pregunta por Keywords (modelos, talla, etc.)
                 if (palabrasProducto.some(keyword => textoSinTildes.includes(keyword))) {
-                    console.log(`🚨 ESCALANDO FORZADO (P4 Fallback): La IA falló, pero la pregunta (${texto}) contiene Keywords de producto/compra.`);
+                    console.log(`🚨 ESCALANDO FORZADO: La IA falló, pero la pregunta (${texto}) contiene Keywords de producto.`);
                     escalarAHumano = true;
                 }
             }
             
             if (escalarAHumano) {
-                console.log(`🚨 ESCALANDO a humano por solicitud de producto/compra (P4): ${numero}`);
+                console.log(`🚨 ESCALANDO a humano por solicitud de producto/compra: ${numero}`);
                 await notificarSlack(numero, texto);
                 
-                // Se usa el mensaje de producto suave (P0.6) para evitar el mensaje agresivo y datos de pago.
-                respuesta = mensajeProductoEscalaSuave; 
+                conversacionEnEscalamiento.set(numero, true);
                 
-                // Desbloquear la conversación
-                conversacionEnEscalamiento.delete(numero); 
+                // --- MENSAJE DE ESCALAMIENTO FINAL ---
+                let mensajeEscalaBase = `¡Claro! Permíteme un momento, estoy conectando tu conversación con una vendedora experta. En breve te atenderán personalmente para ayudarte con stock, tallas, y método de pago. ¡Gracias! 😊`;
+                
+                respuesta = mensajeEscalaBase;
+                if (buscaPago) {
+                    respuesta += '\n\n' + mensajePago;
+                }
 
             } else {
-                // 3. Si no escaló, enviar la respuesta de la IA (solo para saludos o preguntas muy genéricas)
+                // 3. Si no escaló, enviar la respuesta de la IA.
                 respuesta = respuestaIA;
                 conversacionEnEscalamiento.delete(numero); 
             }
@@ -620,4 +452,3 @@ app.listen(PORT, async () => {
     await cargarMemoria(); 
     console.log(`🤖 Chatbot activo en puerto ${PORT}.`);
 });
-
