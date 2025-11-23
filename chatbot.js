@@ -63,7 +63,7 @@ const mensajeDinamicaVideo =
     `Seguimos en línea para lo que necesites. 😊\n\n` +
     `Por favor, tómate solo 30 segundos para ver nuestro video de bienvenida, ahí te explico nuestra dinámica: ${VIDEO_BIENVENIDA_URL}`;
 
-// MENSAJE DE CIERRE PURO (P1.5) - MODIFICADO
+// MENSAJE DE CIERRE PURO (P1.5)
 const mensajeCierrePuro = 
     `Seguimos en línea para lo que necesites. 😊`;
     
@@ -264,6 +264,26 @@ async function procesarMensajes(body) {
             const textoLower = texto.toLowerCase();
             const textoSinTildes = stripAccents(textoLower); 
             
+            // --- Definición de P0 (Venta Agresiva) para uso en la lógica
+            const buscaPedidoClaro = textoSinTildes.includes('quiero hacer un pedido') || 
+                                     textoSinTildes.includes('quiero comprar') ||
+                                     textoSinTildes.includes('para comprar') ||
+                                     textoSinTildes.includes('compraria') ||
+                                     textoSinTildes.includes('dame el precio') ||
+                                     textoSinTildes.includes('comprar') ||
+                                     textoSinTildes.includes('cuanto') ||
+                                     textoSinTildes.includes('pago') || 
+                                     textoSinTildes.includes('pagar') || 
+                                     textoSinTildes.includes('contactar a la persona') || 
+                                     textoSinTildes.includes('quiero hablar con') ||     
+                                     textoSinTildes.includes('asesor') ||
+                                     textoSinTildes === 'si' ||
+                                     textoSinTildes.includes('tienda') || 
+                                     textoSinTildes.includes('sobre pedido') ||
+                                     textoSinTildes.includes('comprobante') ||
+                                     textoSinTildes.includes('captura');
+            // --- Fin definición P0
+            
             
             // -------------------------------------------
             // 🚩 0.0 PRIORIDAD MÁXIMA: DEVOLUCIONES / CAMBIOS (CRÍTICO) 🚩
@@ -291,67 +311,9 @@ async function procesarMensajes(body) {
             }
             
             // -------------------------------------------
-            // 🚩 2. PRIORIDAD: MECÁNICA DE COMPRA / PAGO (RESPUESTA RÁPIDA - SOLO DATOS/VIDEO) 🚩
+            // 🚩 0. PRIORIDAD MÁXIMA: ESCALAMIENTO POR PEDIDO CLARO / CONTACTO / IMAGEN (VENTA AGRESIVA) 🚩
+            // MOVIDO AQUÍ PARA CAPTURAR INTENCIÓN DE COMPRA ANTES QUE NADA.
             // -------------------------------------------
-            
-            const buscaPagoDatos = textoSinTildes.includes('scotiabank') || 
-                              textoSinTildes.includes('transferencia') ||
-                              textoSinTildes.includes('transfiero') || 
-                              textoSinTildes.includes('transferir') || 
-                              textoSinTildes.includes('deposito') || 
-                              textoSinTildes.includes('cuenta');
-            
-            const buscaDinamica = textoSinTildes.includes('mecanica') || 
-                                   textoSinTildes.includes('dinamica') || 
-                                   textoSinTildes.includes('como se realiza') ||
-                                   textoSinTildes.includes('realizo una compra') ||
-                                   textoSinTildes.includes('como') || 
-                                   textoSinTildes.includes('proceso') || 
-                                   textoSinTildes.includes('realizo') ||
-                                   textoSinTildes.includes('hago') ||
-                                   textoSinTildes.includes('hacer un pedido');
-                                   
-            // Redefinición de P0 para ser usada como negación.
-            const buscaPedidoClaro = textoSinTildes.includes('quiero hacer un pedido') || 
-                                     textoSinTildes.includes('quiero comprar') ||
-                                     textoSinTildes.includes('para comprar') ||
-                                     textoSinTildes.includes('compraria') ||
-                                     textoSinTildes.includes('dame el precio') ||
-                                     textoSinTildes.includes('comprar') ||
-                                     textoSinTildes.includes('cuanto') ||
-                                     textoSinTildes.includes('pago') || 
-                                     textoSinTildes.includes('pagar') || 
-                                     textoSinTildes.includes('contactar a la persona') || 
-                                     textoSinTildes.includes('quiero hablar con') ||     
-                                     textoSinTildes.includes('asesor') ||
-                                     textoSinTildes === 'si' ||
-                                     textoSinTildes.includes('tienda') || 
-                                     textoSinTildes.includes('sobre pedido') ||
-                                     textoSinTildes.includes('comprobante') ||
-                                     textoSinTildes.includes('captura');
-                                     
-
-                  
-            if ((buscaPagoDatos && !buscaPedidoClaro) || buscaDinamica) { 
-                console.log(`[FLOW] Solicitud de Pago/Dinamica/Instrucciones de ${numero}.`);
-                await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
-                
-                if (buscaPagoDatos && !buscaPedidoClaro) await enviarTextoWasender(numero, mensajePago);
-                if (buscaDinamica) await enviarTextoWasender(numero, mensajeDinamicaVideo);
-                
-                if(!bienvenidaEnviada.has(numero)) {
-                    bienvenidaEnviada.set(numero, true);
-                    await guardarMemoria();
-                }
-                conversacionEnEscalamiento.delete(numero); 
-                continue; 
-            }
-
-
-            // -------------------------------------------
-            // 🚩 0. PRIORIDAD MÁXIMA: ESCALAMIENTO POR PEDIDO CLARO / CONTACTO / IMAGEN / CONFIRMACIÓN DE PAGO 🚩
-            // -------------------------------------------
-            // *** NOTA: La variable 'buscaPedidoClaro' ya está definida arriba para consistencia. ***
             
             const esImagenDePedido = (
                 msgObj.message?.imageMessage && 
@@ -359,10 +321,11 @@ async function procesarMensajes(body) {
             );
 
             if (esImagenDePedido || buscaPedidoClaro) {
-                console.log(`🚨 ESCALANDO a humano por intencion de COMPRA/CONTACTO/SEGMENTACIÓN CLARA de ${numero}.`);
+                console.log(`🚨 ESCALANDO a humano por intencion de COMPRA/CONTACTO/SEGMENTACIÓN CLARA (P0) de ${numero}.`);
                 await notificarSlack(numero, `INTENCIÓN DE COMPRA/CONTACTO/SEGMENTACIÓN: "${texto}"`);
                 await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
                 
+                // Manda mensaje de escalamiento con datos bancarios incluidos (mensajeEscalaCompleta)
                 await enviarTextoWasender(numero, mensajeEscalaCompleta);
                 
                 conversacionEnEscalamiento.delete(numero); 
@@ -414,16 +377,53 @@ async function procesarMensajes(body) {
             }
             
             // -------------------------------------------
-            // 🚩 1.5 PRIORIDAD: DESCARTE POR CIERRE O AGRADECIMIENTO (Incluye reenganche) 🚩
+            // 🚩 2. PRIORIDAD: MECÁNICA DE COMPRA / PAGO (RESPUESTA RÁPIDA - SOLO DATOS/VIDEO) 🚩
+            // -------------------------------------------
+            
+            const buscaPagoDatos = textoSinTildes.includes('scotiabank') || 
+                              textoSinTildes.includes('transferencia') ||
+                              textoSinTildes.includes('transfiero') || 
+                              textoSinTildes.includes('transferir') || 
+                              textoSinTildes.includes('deposito') || 
+                              textoSinTildes.includes('cuenta');
+            
+            const buscaDinamica = textoSinTildes.includes('mecanica') || 
+                                   textoSinTildes.includes('dinamica') || 
+                                   textoSinTildes.includes('como se realiza') ||
+                                   textoSinTildes.includes('realizo una compra') ||
+                                   textoSinTildes.includes('como') || 
+                                   textoSinTildes.includes('proceso') || 
+                                   textoSinTildes.includes('realizo') ||
+                                   textoSinTildes.includes('hago') ||
+                                   textoSinTildes.includes('hacer un pedido');
+
+                  
+            if (buscaPagoDatos || buscaDinamica) { 
+                console.log(`[FLOW] Solicitud de Pago/Dinamica/Instrucciones de ${numero}.`);
+                await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
+                
+                if (buscaPagoDatos) await enviarTextoWasender(numero, mensajePago);
+                if (buscaDinamica) await enviarTextoWasender(numero, mensajeDinamicaVideo);
+                
+                if(!bienvenidaEnviada.has(numero)) {
+                    bienvenidaEnviada.set(numero, true);
+                    await guardarMemoria();
+                }
+                conversacionEnEscalamiento.delete(numero); 
+                continue; 
+            }
+            
+            // -------------------------------------------
+            // 🚩 1.5 PRIORIDAD: DESCARTE POR CIERRE O AGRADECIMIENTO (MOVIDO MÁS ARRIBA) 🚩
             // -------------------------------------------
             
             const buscaCierre = textoSinTildes.includes('gracias') ||
                                 textoSinTildes.includes('bye') ||
                                 textoSinTildes.includes('saludos') ||
-                                textoSinTildes === 'ok' || 
-                                textoSinTildes === 'va' || 
-                                textoSinTildes === 'vale' || 
-                                textoSinTildes === 'sale' || 
+                                textoSinTildes.includes('ok') || // AÑADIDO .includes()
+                                textoSinTildes.includes('va') || 
+                                textoSinTildes.includes('vale') || 
+                                textoSinTildes.includes('sale') || 
                                 textoSinTildes.includes('está bien') || 
                                 textoSinTildes.includes('esta bien'); 
 
@@ -431,7 +431,6 @@ async function procesarMensajes(body) {
                 console.log(`[FLOW] Mensaje de cierre/agradecimiento/acuse de recibo detectado de ${numero}. Enviando cierre simple.`);
                 await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
                 
-                // ===> USA EL MENSAJE PURO Y SIMPLE <===
                 await enviarTextoWasender(numero, mensajeCierrePuro);
                 
                 continue; 
