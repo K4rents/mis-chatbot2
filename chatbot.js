@@ -266,7 +266,7 @@ async function procesarMensajes(body) {
             }
             
             // -------------------------------------------
-            // 🚩 0. PRIORIDAD MÁXIMA: ESCALAMIENTO POR PEDIDO CLARO / CONTACTO / IMAGEN 🚩
+            // 🚩 0. PRIORIDAD MÁXIMA: ESCALAMIENTO POR PEDIDO CLARO / CONTACTO / IMAGEN / SEGMENTACIÓN 🚩
             // -------------------------------------------
             const buscaPedidoClaro = textoSinTildes.includes('quiero hacer un pedido') ||
                                      textoSinTildes.includes('hacer un pedido') ||
@@ -287,7 +287,12 @@ async function procesarMensajes(body) {
                                      textoSinTildes.includes('escalar') ||  
                                      textoSinTildes.includes('vendedora') ||
                                      textoSinTildes.includes('vendedor') || 
-                                     textoSinTildes.includes('asesor');     
+                                     textoSinTildes.includes('asesor') ||
+                                     textoSinTildes === 'si' ||
+                                     // NUEVA ADICIÓN DE LA LÓGICA P1.2 (SEGMENTACIÓN)
+                                     textoSinTildes.includes('tienda') || 
+                                     textoSinTildes.includes('sobre pedido') ||
+                                     textoSinTildes.includes('manejo pedido');
                                      
 
 
@@ -297,8 +302,8 @@ async function procesarMensajes(body) {
             );
 
             if (esImagenDePedido || buscaPedidoClaro) {
-                console.log(`🚨 ESCALANDO a humano por intencion de COMPRA CLARA/ENVÍO/CONTACTO de ${numero}.`);
-                await notificarSlack(numero, `INTENCIÓN DE COMPRA CLARA/IMAGEN/ENVÍO/CONTACTO: "${texto}"`);
+                console.log(`🚨 ESCALANDO a humano por intencion de COMPRA/CONTACTO/SEGMENTACIÓN CLARA de ${numero}.`);
+                await notificarSlack(numero, `INTENCIÓN DE COMPRA/CONTACTO/SEGMENTACIÓN: "${texto}"`);
                 await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
                 
                 // Usar el mensaje completo y estandarizado
@@ -313,26 +318,8 @@ async function procesarMensajes(body) {
                 continue; 
             }
             
-            // -------------------------------------------
-            // 🚩 1.2 PRIORIDAD: CONFIRMACIÓN DE SEGMENTACIÓN (TIENDA/PEDIDO) 🚩
-            // -------------------------------------------
-
-            const buscaTiendaPedido = textoSinTildes.includes('tienda') ||
-                                       textoSinTildes.includes('sobre pedido') ||
-                                       textoSinTildes.includes('manejo pedido');
-
-            if (buscaTiendaPedido && bienvenidaEnviada.has(numero) && !conversacionEnEscalamiento.has(numero)) {
-                console.log(`[FLOW] Respuesta a pregunta de segmentación detectada de ${numero}.`);
-                await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
-                
-                const mensajeConfirmacion = 
-                    `¡Perfecto! Para darte la mejor atención, lo ideal es escalarte con una *vendedora experta en mayoreo*. Ella te puede dar acceso a catálogos exclusivos y precios especiales. \n\n` +
-                    `*¿Gusta que lo escalemos de inmediato o tiene alguna otra pregunta* en la que lo pueda ayudar?`;
-                
-                await enviarTextoWasender(numero, mensajeConfirmacion);
-                
-                continue; 
-            }
+            // 🚩 ELIMINADA LA PRIORIDAD 1.2: CONFIRMACIÓN DE SEGMENTACIÓN (Flujo simplificado) 🚩
+            
             
             // -------------------------------------------
             // 🚩 1.5 PRIORIDAD: DESCARTE POR CIERRE O AGRADECIMIENTO 🚩
@@ -350,7 +337,7 @@ async function procesarMensajes(body) {
                 console.log(`[FLOW] Mensaje de cierre/agradecimiento/acuse de recibo detectado de ${numero}. Invitando a ver dinámica.`);
                 await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
                 
-                // AHORA ENVÍA EL VIDEO DE DINÁMICA
+                // Envía el video de dinámica
                 await enviarTextoWasender(numero, mensajeDinamicaVideo);
                 
                 continue; 
