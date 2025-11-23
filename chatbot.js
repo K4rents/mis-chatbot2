@@ -70,11 +70,6 @@ const mensajeCierrePuro =
 const mensajeSaludoExistente = 
     `¡Hola, bienvenida de nuevo! 😊 ¿En qué puedo ayudarte hoy? Recuerda que nuestra dinámica de compra está en este video: ${VIDEO_BIENVENIDA_URL}`;
 
-// NUEVO MENSAJE DE BLOQUEO DE REPETICIÓN (P0.2)
-const mensajeEscalamientoBloqueo = 
-    `Nuestra vendedora experta ya fue notificada de tu mensaje y te atenderá de inmediato. ¡Gracias por la confirmación!`;
-
-
 const bienvenidaTextoParte1 = 
     `¡Hola, bienvenida a *Karen's Clothes*! Soy **Paola** y estoy encantada de atenderte. ✨\n\n` +
     `¿Tienes tienda o te manejas sobre pedido?\n\n` + 
@@ -296,18 +291,43 @@ async function procesarMensajes(body) {
                                      textoSinTildes === 'si' ||
                                      textoSinTildes.includes('tienda') || 
                                      textoSinTildes.includes('sobre pedido') ||
-                                     textoSinTildes.includes('comprobante') || // <-- Alto intento de pago
-                                     textoSinTildes.includes('captura'); // <-- Alto intento de pago
+                                     textoSinTildes.includes('comprobante') || 
+                                     textoSinTildes.includes('captura'); 
             // --- Fin definición P0
             
+            // --- NUEVO FILTRO PARA REENVÍO DE PAGO EN P0.2
+            const buscaReenvioPago = textoSinTildes.includes('pago') || 
+                                     textoSinTildes.includes('pagar') || 
+                                     textoSinTildes.includes('cuenta') || 
+                                     textoSinTildes.includes('clabe') || 
+                                     textoSinTildes.includes('transferencia') ||
+                                     textoSinTildes.includes('deposito') ||
+                                     textoSinTildes.includes('comprobante') || 
+                                     textoSinTildes.includes('comprar') ||
+                                     textoSinTildes.includes('pedido') ||
+                                     textoSinTildes.includes('datos');
+            // --- FIN NUEVO FILTRO
+
             
             // -------------------------------------------
-            // 🚩 0.2 PRIORIDAD: BLOQUEO DE RESPUESTA REPETITIVA POST-ESCALAMIENTO 🚩
+            // 🚩 0.2 PRIORIDAD: BLOQUEO DE RESPUESTA REPETITIVA POST-ESCALAMIENTO (Reenvío de Pago) 🚩
             // -------------------------------------------
             if (conversacionEnEscalamiento.has(numero)) {
-                console.log(`🔒 BLOQUEO DE RESPUESTA: Cliente ${numero} ya en escalamiento. Enviando ACK simple.`);
-                await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
-                await enviarTextoWasender(numero, mensajeEscalamientoBloqueo);
+                console.log(`🔒 BLOQUEO DE RESPUESTA: Cliente ${numero} ya en escalamiento.`);
+                
+                // Action 1: Re-notificar Slack en mensajes agresivos repetidos.
+                await notificarSlack(numero, `REPETICIÓN DE INTENTO DE COMPRA/CONTACTO: "${texto}"`);
+                
+                // Action 2: Check if the user is looking for payment data.
+                if (buscaReenvioPago) {
+                    console.log("💳 Sobreescribiendo bloqueo: Re-enviando solo datos de pago (mensajePago).");
+                    await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
+                    await enviarTextoWasender(numero, mensajePago);
+                } else {
+                    console.log("🤫 Silenciando bot para intervención humana (mensaje no relacionado a pago).");
+                    // No response to avoid annoyance.
+                }
+                
                 continue;
             }
             
@@ -428,7 +448,6 @@ async function procesarMensajes(body) {
                     bienvenidaEnviada.set(numero, true);
                     await guardarMemoria();
                 }
-                // NO establece el estado de escalamiento, es solo informativo
                 continue; 
             }
             
@@ -446,13 +465,12 @@ async function procesarMensajes(body) {
                                 textoSinTildes.includes('está bien') || 
                                 textoSinTildes.includes('esta bien'); 
 
-            if (buscaCierre) { // Se quitó el chequeo de escalamiento para permitir agradecimientos post-escalada
+            if (buscaCierre) { 
                 console.log(`[FLOW] Mensaje de cierre/agradecimiento/acuse de recibo detectado de ${numero}. Enviando cierre simple.`);
                 await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
                 
                 await enviarTextoWasender(numero, mensajeCierrePuro);
                 
-                // NO establece ni borra el estado de escalamiento
                 continue; 
             }
             
@@ -506,7 +524,6 @@ async function procesarMensajes(body) {
                 
                 await enviarBienvenidaCompleta(numero); 
                 
-                // NO establece ni borra el estado de escalamiento
                 continue; 
             }
 
@@ -552,7 +569,6 @@ async function procesarMensajes(body) {
                 
             } else {
                 respuesta = respuestaIA;
-                // NO establece ni borra el estado de escalamiento
             }
             
             if (respuesta) {
