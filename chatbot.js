@@ -31,7 +31,6 @@ let bienvenidaEnviada = new Map();
 const conversacionEnEscalamiento = new Map(); 
 
 // Palabras clave de producto/compra 
-// Incluye 'pedido' y 'compra' para forzar el escalamiento en el fallback (Prioridad 4)
 const palabrasProducto = ['modelo', 'talla', 'precio', 'vestido', 'falda', 'blusa', 'pantalón', 'pantalon', 'ropa', 'artículo', 'articulo', 'catalogo', 'stock', 'pedido', 'compra']; 
 // Palabras críticas para escalamiento inmediato (Prioridad 0.0)
 const palabrasCriticas = ['devolución', 'devolucion', 'regresar', 'cambio', 'reembolso', 'reembolsar', 'queja', 'garantía', 'garantia']; 
@@ -257,7 +256,8 @@ async function procesarMensajes(body) {
                 
                 await enviarTextoWasender(numero, respuestaCritica);
                 
-                conversacionEnEscalamiento.set(numero, true);
+                // CORRECCIÓN FINAL: Desbloquear la conversación
+                conversacionEnEscalamiento.delete(numero);
                 if(!bienvenidaEnviada.has(numero)) {
                     bienvenidaEnviada.set(numero, true);
                     await guardarMemoria();
@@ -297,7 +297,8 @@ async function procesarMensajes(body) {
                 // Usar el mensaje completo y estandarizado
                 await enviarTextoWasender(numero, mensajeEscalaCompleta);
                 
-                conversacionEnEscalamiento.set(numero, true);
+                // CORRECCIÓN FINAL: Desbloquear la conversación
+                conversacionEnEscalamiento.delete(numero); 
                 if(!bienvenidaEnviada.has(numero)) {
                     bienvenidaEnviada.set(numero, true);
                     await guardarMemoria();
@@ -327,18 +328,23 @@ async function procesarMensajes(body) {
             }
             
             // -------------------------------------------
-            // 🚩 1.5 PRIORIDAD: DESCARTE POR CIERRE O AGRADECIMIENTO 🚩 (MOVIDO ARRIBA DE 1)
+            // 🚩 1.5 PRIORIDAD: DESCARTE POR CIERRE O AGRADECIMIENTO 🚩
             // -------------------------------------------
             
             const buscaCierre = textoSinTildes.includes('gracias') ||
                                 textoSinTildes.includes('bye') ||
-                                textoSinTildes.includes('saludos');
+                                textoSinTildes.includes('saludos') ||
+                                textoSinTildes === 'ok' || 
+                                textoSinTildes === 'va' || 
+                                textoSinTildes.includes('está bien') || 
+                                textoSinTildes.includes('esta bien'); 
 
             if (buscaCierre && !conversacionEnEscalamiento.has(numero)) {
-                console.log(`[FLOW] Mensaje de cierre/agradecimiento detectado de ${numero}.`);
+                console.log(`[FLOW] Mensaje de cierre/agradecimiento/acuse de recibo detectado de ${numero}.`);
                 await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
                 
-                const mensajeCierre = `¡Un gusto saludarte! Estamos aquí para lo que necesites. Que tengas un excelente día. 😊`;
+                // MODIFICACIÓN DEL MENSAJE DE CIERRE
+                const mensajeCierre = `Seguimos en línea para lo que necesites. 😊`; 
                 await enviarTextoWasender(numero, mensajeCierre);
                 
                 continue; 
@@ -348,7 +354,7 @@ async function procesarMensajes(body) {
             // 🚩 1. PRIORIDAD: SALUDO SIMPLE DE CLIENTE EXISTENTE (MENSAJE CORTO) 🚩
             // -------------------------------------------
             
-            // La lógica length < 10 captura 'va' y 'ok'
+            // La lógica length < 10 captura textos cortos que no fueron atrapados por P1.5
             const esSaludoSimple = textoSinTildes.includes('hola') || 
                                    textoSinTildes.includes('hi') ||
                                    textoSinTildes.includes('buenos dias') ||
@@ -374,7 +380,7 @@ async function procesarMensajes(body) {
                               textoSinTildes.includes('scotiabank') || textoSinTildes.includes('transferencia') ||
                               textoSinTildes.includes('deposito') || textoSinTildes.includes('cuenta');
             
-            // LÓGICA DE DINÁMICA/VIDEO - Captura preguntas de "cómo" o "proceso"
+            // LÓGICA DE DINÁMICA/VIDEO - Captura preguntas de "cómo" o "proceso" (Ajustes para errores tipográficos)
             const buscaDinamica = textoSinTildes.includes('mecanica') || 
                                    textoSinTildes.includes('dinamica') || 
                                    textoSinTildes.includes('como se realiza') ||
@@ -382,8 +388,8 @@ async function procesarMensajes(body) {
                                    textoSinTildes.includes('como') || 
                                    textoSinTildes.includes('proceso') || 
                                    textoSinTildes.includes('realizo') ||
-                                   textoSinTildes.includes('hago') ||   // <-- AJUSTE AÑADIDO
-                                   textoSinTildes.includes('con '); // <-- AJUSTE AÑADIDO (con espacio)
+                                   textoSinTildes.includes('hago') ||   
+                                   textoSinTildes.includes('con '); 
                   
             if (buscaPago || buscaDinamica) {
                 console.log(`[FLOW] Solicitud de Pago/Dinamica/Instrucciones de ${numero}.`);
@@ -459,10 +465,11 @@ async function procesarMensajes(body) {
                 console.log(`🚨 ESCALANDO a humano por solicitud de producto/compra: ${numero}`);
                 await notificarSlack(numero, texto);
                 
-                conversacionEnEscalamiento.set(numero, true);
-                
                 // Usar el mensaje completo y estandarizado
                 respuesta = mensajeEscalaCompleta; 
+                
+                // CORRECCIÓN FINAL: Desbloquear la conversación
+                conversacionEnEscalamiento.delete(numero); 
 
             } else {
                 // 3. Si no escaló, enviar la respuesta de la IA (solo para saludos o preguntas muy genéricas)
