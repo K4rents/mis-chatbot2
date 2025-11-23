@@ -60,6 +60,7 @@ const mensajeProductoEscalaSuave =
     `¡Excelente! 👕 Ya te estoy enlazando con nuestra *vendedora experta*. Ella confirmará el *stock* y *talla* o resolverá cualquier otra duda que tengas. ¡Te atenderán de inmediato! 😊`;
 
 // --- MENSAJE ESPECÍFICO PARA CATÁLOGO (P0.8) ---
+// NOTA V24: Este mensaje se mantiene como constante, pero el flujo P0.8 usa ahora mensajeProductoEscalaSuave
 const mensajeCatalogoEscalaSuave = 
     `¡Sí! 🛍️ Para ver todo nuestro *catálogo completo* y confirmar *stock* de inmediato, ya te estoy enlazando con nuestra vendedora experta. ¡Te atenderán de inmediato! 😊`;
 
@@ -304,7 +305,7 @@ async function procesarMensajes(body) {
             const buscaPedidoClaro = textoSinTildes.includes('quiero hacer un pedido') || 
                                      textoSinTildes.includes('quiero realizar un pedido') || 
                                      textoSinTildes.includes('quiero realizar una compra') || 
-                                     textoSinTildes.includes('voy a realizar una compra') || // V23: Added explicit phrase
+                                     textoSinTildes.includes('voy a realizar una compra') || // V23: Filter added
                                      textoSinTildes.includes('hacer un pedido') || 
                                      textoSinTildes.includes('realizar un pedido') || 
                                      textoSinTildes.includes('quiero comprar') ||
@@ -614,18 +615,19 @@ async function procesarMensajes(body) {
                 
                 await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
                 
-                // 1. Primer intento de mensaje (tolerancia a fallos)
+                // V24: Usando el mensaje de producto (más estable) en lugar del mensaje de catálogo original que fallaba
+                
+                // 1. Primer intento de mensaje
                 try {
-                    await enviarTextoWasender(numero, mensajeCatalogoEscalaSuave);
+                    await enviarTextoWasender(numero, mensajeProductoEscalaSuave); // <--- CAMBIO CLAVE V24
                 } catch (e) {
                     console.error('⚠️ Fallo en enviar mensaje P0.8 Catálogo (Intento 1).', e.message);
                 }
                 
-                // V23: REDUNDANCIA DEL MENSAJE DE CATÁLOGO (SOLUCIÓN AL FALLO INTERMITENTE)
+                // REDUNDANCIA DEL MENSAJE DE PRODUCTO
                 await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
                 try {
-                    console.log("💳 Enviando REDUNDANCIA del mensaje de Catálogo para garantizar entrega.");
-                    await enviarTextoWasender(numero, mensajeCatalogoEscalaSuave);
+                    await enviarTextoWasender(numero, mensajeProductoEscalaSuave); // <--- CAMBIO CLAVE V24
                 } catch (e) {
                     console.error('⚠️ Fallo en enviar mensaje P0.8 Catálogo (Intento 2).', e.message);
                 }
