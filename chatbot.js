@@ -1,3 +1,5 @@
+JavaScript
+
 import express from "express";
 import axios from "axios";
 import fs from "fs/promises"; 
@@ -32,7 +34,8 @@ const conversacionEnEscalamiento = new Map(); // Mapa para controlar si el human
 let videoDinamicaEnviada = new Map(); 
 
 // Palabras clave de producto/compra 
-const palabrasProducto = ['modelo', 'talla', 'precio', 'vestido', 'falda', 'blusa', 'pantalón', 'pantalon', 'ropa', 'artículo', 'articulo', 'catalogo', 'stock']; 
+// V20: Added 'catalgo' (typo) for robustness
+const palabrasProducto = ['modelo', 'talla', 'precio', 'vestido', 'falda', 'blusa', 'pantalón', 'pantalon', 'ropa', 'artículo', 'articulo', 'catalogo', 'catalgo', 'stock']; 
 // Palabras críticas para escalamiento inmediato (Prioridad 0.0)
 const palabrasCriticas = ['devolución', 'devolucion', 'regresar', 'cambio', 'reembolso', 'reembolsar', 'queja', 'garantía', 'garantia']; 
 
@@ -55,11 +58,15 @@ const mensajeEscalaCompleta =
 const mensajeEnvioEscalaSuave = 
     `¡Excelente! 📦 Ya te estoy enlazando con nuestra *vendedora experta*. Ella cotizará el *envío* y confirmará la cobertura. ¡Te atenderán de inmediato! 😊`;
 
-// --- MENSAJE PARA ESCALAMIENTO SUAVE DE PRODUCTO (P0.6 y P0.8) ---
+// --- MENSAJE PARA ESCALAMIENTO SUAVE DE PRODUCTO (P0.6) ---
 const mensajeProductoEscalaSuave = 
     `¡Excelente! 👕 Ya te estoy enlazando con nuestra *vendedora experta*. Ella confirmará el *stock* y *talla* o resolverá cualquier otra duda que tengas. ¡Te atenderán de inmediato! 😊`;
 
-// --- V18: MENSAJE PARA ESCALAMIENTO SUAVE DE UBICACIÓN (P0.7) ---
+// --- V20: MENSAJE ESPECÍFICO PARA CATÁLOGO (P0.8) ---
+const mensajeCatalogoEscalaSuave = 
+    `¡Sí! 🛍️ Para ver todo nuestro *catálogo completo* y confirmar *stock* de inmediato, ya te estoy enlazando con nuestra vendedora experta. ¡Te atenderán de inmediato! 😊`;
+
+// --- MENSAJE PARA ESCALAMIENTO SUAVE DE UBICACIÓN (P0.7) ---
 const mensajeUbicacionEscalaSuave = 
     `*¡Sí!* 📍 Manejamos nuestra operación desde Guadalajara. Ya te estoy enlazando con nuestra *vendedora experta* para que te dé la *dirección exacta* de la bodega o te agende tu recolección. ¡Te atenderán de inmediato! 😊`;
     
@@ -302,7 +309,7 @@ async function procesarMensajes(body) {
                                      textoSinTildes.includes('hacer un pedido') || 
                                      textoSinTildes.includes('realizar un pedido') || 
                                      textoSinTildes.includes('quiero comprar') ||
-                                     textoSinTildes.includes('quiero compra') || // V19: Added incomplete phrase
+                                     textoSinTildes.includes('quiero compra') || 
                                      textoSinTildes.includes('para comprar') ||
                                      textoSinTildes.includes('compraria') ||
                                      textoSinTildes.includes('dame el precio') ||
@@ -328,13 +335,13 @@ async function procesarMensajes(body) {
                                      textoSinTildes.includes('cuenta') || 
                                      textoSinTildes.includes('clabe') || 
                                      textoSinTildes.includes('transferencia') ||
-                                     textoSinTildes.includes('transfiero') || // V19: Added conjugation
+                                     textoSinTildes.includes('transfiero') || 
                                      textoSinTildes.includes('deposito') ||
                                      textoSinTildes.includes('comprobante') || 
                                      textoSinTildes.includes('comprar') ||
                                      textoSinTildes.includes('pedido') ||
                                      textoSinTildes.includes('datos') ||
-                                     textoSinTildes.includes('cinta'); // V19: Added common typo 'cinta'
+                                     textoSinTildes.includes('cinta'); 
             // --- FIN FILTRO
             
             // --- FILTRO PARA CIERRE (P1.5)
@@ -452,9 +459,9 @@ async function procesarMensajes(body) {
             }
             
             // -------------------------------------------
-            // 🚩 0.8 PRIORIDAD: ESCALAMIENTO ESPECÍFICO DE CATÁLOGO (Fix para falla persistente) 🚩
+            // 🚩 0.8 PRIORIDAD: ESCALAMIENTO ESPECÍFICO DE CATÁLOGO (Fix para falla persistente y Mensaje específico) 🚩
             // -------------------------------------------
-            const buscaCatalogoEspecifico = textoSinTildes.includes('catalogo');
+            const buscaCatalogoEspecifico = textoSinTildes.includes('catalogo') || textoSinTildes.includes('catalgo'); // V20: Includes typo
             
             if (buscaCatalogoEspecifico && !esPreguntaInformacional) {
                 console.log(`🚨 ESCALANDO SUAVE a humano por solicitud forzada de CATÁLOGO (P0.8): ${numero}.`);
@@ -468,9 +475,9 @@ async function procesarMensajes(body) {
                 
                 await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
                 
-                // Mensaje (se envía el mensaje de producto suave)
+                // V20: Se envía el mensaje de catálogo específico
                 try {
-                    await enviarTextoWasender(numero, mensajeProductoEscalaSuave);
+                    await enviarTextoWasender(numero, mensajeCatalogoEscalaSuave);
                 } catch (e) {
                     console.error('⚠️ Fallo en enviar mensaje P0.8 Catálogo, se continúa el flujo:', e.message);
                 }
@@ -617,13 +624,14 @@ async function procesarMensajes(body) {
             
             const buscaPagoDatos = textoSinTildes.includes('scotiabank') || 
                               textoSinTildes.includes('transferencia') ||
-                              textoSinTildes.includes('transfiero') || // V19
+                              textoSinTildes.includes('transfiero') || 
                               textoSinTildes.includes('transferir') || 
                               textoSinTildes.includes('deposito') || 
                               textoSinTildes.includes('cuenta') ||
                               textoSinTildes.includes('clabe') ||
-                              textoSinTildes.includes('cinta'); // V19
+                              textoSinTildes.includes('cinta'); 
             
+            // V20: El filtro es PreguntaInformacional ya incluye "Como hago un pedido"
             const buscaDinamica = esPreguntaInformacional ||
                                    textoSinTildes.includes('mecanica') || 
                                    textoSinTildes.includes('dinamica') || 
@@ -634,6 +642,7 @@ async function procesarMensajes(body) {
                 
                 // 1. Send Payment Data (if requested)
                 if (buscaPagoDatos) {
+                    console.log("💳 Enviando datos de pago...");
                     await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
                     try {
                         await enviarTextoWasender(numero, mensajePago);
@@ -644,6 +653,7 @@ async function procesarMensajes(body) {
                 
                 // 2. Send Dynamic Video (ALWAYS send if requested)
                 if (buscaDinamica) { 
+                    console.log("🎥 Enviando mensaje de video/dinámica...");
                     await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
                     try {
                         await enviarTextoWasender(numero, mensajeDinamicaVideo);
