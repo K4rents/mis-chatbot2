@@ -302,7 +302,8 @@ async function procesarMensajes(body) {
                                             textoSinTildes.includes('como funciona');
             
             const buscaPedidoClaro = textoSinTildes.includes('quiero hacer un pedido') || 
-                                     textoSinTildes.includes('quiero realizar un pedido') || // V21: Added explicit phrase
+                                     textoSinTildes.includes('quiero realizar un pedido') || 
+                                     textoSinTildes.includes('quiero realizar una compra') || // V21: Added explicit phrase
                                      textoSinTildes.includes('hacer un pedido') || 
                                      textoSinTildes.includes('realizar un pedido') || 
                                      textoSinTildes.includes('quiero comprar') ||
@@ -319,7 +320,6 @@ async function procesarMensajes(body) {
                                      textoSinTildes.includes('contactar a la persona') || 
                                      textoSinTildes.includes('quiero hablar con') ||     
                                      textoSinTildes.includes('asesor') ||
-                                     // V21: textoSinTildes === 'si' REMOVED from P0
                                      textoSinTildes.includes('tienda') || 
                                      textoSinTildes.includes('sobre pedido') ||
                                      textoSinTildes.includes('comprobante') || 
@@ -479,10 +479,20 @@ async function procesarMensajes(body) {
                 
                 await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
                 
+                // 1. Enviar el mensaje de escalamiento COMPLETO (incluye datos de pago)
                 try {
                     await enviarTextoWasender(numero, mensajeEscalaCompleta);
                 } catch (e) {
-                     console.error('⚠️ Fallo en enviar mensaje P0 Completo, se continúa el flujo:', e.message);
+                     console.error('⚠️ Fallo en enviar mensaje P0 Completo (Mensaje Largo):', e.message);
+                }
+                
+                // V22: REDUNDANCIA DE DATOS DE PAGO (SOLUCIÓN AL FALLO INTERMITENTE)
+                await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
+                 try {
+                    console.log("💳 Enviando REDUNDANCIA de datos de pago (mensajePago) para garantizar entrega.");
+                    await enviarTextoWasender(numero, mensajePago);
+                } catch (e) {
+                     console.error('⚠️ Fallo en enviar mensaje P0 Redundancia Pago, se continúa el flujo:', e.message);
                 }
                 
                 conversacionEnEscalamiento.set(numero, Date.now()); // Establece el estado de escalamiento
@@ -607,7 +617,8 @@ async function procesarMensajes(body) {
                 try {
                     await enviarTextoWasender(numero, mensajeCatalogoEscalaSuave);
                 } catch (e) {
-                    console.error('⚠️ Fallo en enviar mensaje P0.8 Catálogo, se continúa el flujo:', e.message);
+                    // Reporte de fallo: el mensaje de catálogo falló
+                    console.error('⚠️ Fallo en enviar mensaje P0.8 Catálogo (WASENDER_FAIL INTERMITENTE). Se continúa el flujo:', e.message);
                 }
                 
                 conversacionEnEscalamiento.set(numero, Date.now()); // Establece el estado de escalamiento
