@@ -29,7 +29,7 @@ const MEMORY_FILE = 'welcome_memory.json';
 const mensajesProcesados = new Set();
 let bienvenidaEnviada = new Map(); 
 const conversacionEnEscalamiento = new Map(); // Mapa para controlar si el humano ya fue notificado (P0.2)
-const videoDinamicaEnviada = new Map(); // NUEVO: Mapa para asegurar que el video P2 solo se envíe una vez.
+let videoDinamicaEnviada = new Map(); // Mapa para asegurar que el video P2 solo se envíe una vez.
 
 // Palabras clave de producto/compra 
 const palabrasProducto = ['modelo', 'talla', 'precio', 'vestido', 'falda', 'blusa', 'pantalón', 'pantalon', 'ropa', 'artículo', 'articulo', 'catalogo', 'stock']; 
@@ -446,8 +446,9 @@ async function procesarMensajes(body) {
                                    textoSinTildes.includes('mecanica') || 
                                    textoSinTildes.includes('dinamica') || 
                                    textoSinTildes.includes('proceso');
+            
+            let mensajeP2Enviado = false; // NUEVO: Flag para rastrear si se envió un mensaje en P2.
 
-                  
             if (buscaPagoDatos || buscaDinamica) { 
                 console.log(`[FLOW] Solicitud de Pago/Dinamica/Instrucciones (P2) de ${numero}.`);
                 
@@ -455,6 +456,7 @@ async function procesarMensajes(body) {
                 if (buscaPagoDatos) {
                     await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
                     await enviarTextoWasender(numero, mensajePago);
+                    mensajeP2Enviado = true;
                 }
                 
                 // 2. Send Dynamic Video (only if it hasn't been sent before)
@@ -462,6 +464,7 @@ async function procesarMensajes(body) {
                     await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
                     await enviarTextoWasender(numero, mensajeDinamicaVideo);
                     videoDinamicaEnviada.set(numero, true); // Set the guard
+                    mensajeP2Enviado = true;
                 }
                 
                 // Update welcome state
@@ -470,8 +473,11 @@ async function procesarMensajes(body) {
                 }
                 await guardarMemoria();
 
-                // Continuamos para evitar que la P4 (IA) procese las preguntas de P2.
-                continue; 
+                // IMPORTANTE: Solo continuamos y bloqueamos la IA si *realmente* enviamos un mensaje en P2.
+                if (mensajeP2Enviado) {
+                    continue; 
+                }
+                // Si no se envió ningún mensaje (porque la dinámica ya se había enviado), el flujo continuará a P4 (IA).
             }
             
             // -------------------------------------------
