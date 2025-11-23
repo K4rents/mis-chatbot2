@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Chatbot con WaSenderAPI",
   "main": "chatbot.js",
-  "type": "module",  <-- ¡AÑADIDO AQUÍ!
+  "type": "module",  <-- SOLO DEBE QUEDAR ASÍ
   "scripts": {
     "start": "node chatbot.js"
   },
