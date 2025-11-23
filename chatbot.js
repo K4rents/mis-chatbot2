@@ -367,8 +367,8 @@ async function procesarMensajes(body) {
                                 textoSinTildes.includes('saludos') ||
                                 textoSinTildes === 'ok' || 
                                 textoSinTildes === 'va' || 
-                                textoSinTildes === 'vale' || // <-- ¡Añadido!
-                                textoSinTildes === 'sale' || // <-- ¡Añadido!
+                                textoSinTildes === 'vale' || 
+                                textoSinTildes === 'sale' || 
                                 textoSinTildes.includes('está bien') || 
                                 textoSinTildes.includes('esta bien'); 
 
@@ -442,9 +442,11 @@ async function procesarMensajes(body) {
             // 🚩 2. PRIORIDAD: MECÁNICA DE COMPRA / PAGO (RESPUESTA RÁPIDA - NO ESCALA) 🚩
             // -------------------------------------------
             
-            // LÓGICA DE PAGO
+            // LÓGICA DE PAGO (CORREGIDA para incluir 'transfiero' / 'transferir')
             const buscaPago = textoSinTildes.includes('pago') || textoSinTildes.includes('anticipo') || 
                               textoSinTildes.includes('scotiabank') || textoSinTildes.includes('transferencia') ||
+                              textoSinTildes.includes('transfiero') || // <-- ¡Corregido!
+                              textoSinTildes.includes('transferir') || // <-- ¡Corregido!
                               textoSinTildes.includes('deposito') || textoSinTildes.includes('cuenta');
             
             // LÓGICA DE DINÁMICA/VIDEO - Captura preguntas de "cómo" o "proceso" 
