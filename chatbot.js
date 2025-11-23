@@ -31,7 +31,7 @@ let bienvenidaEnviada = new Map();
 const conversacionEnEscalamiento = new Map(); 
 
 // Palabras clave de producto/compra 
-// *** LISTA AJUSTADA: YA NO CONTIENE 'pedido' ni 'compra' ***
+// *** LISTA AJUSTADA: SOLO PRODUCTO/TALLA/STOCK (P0.6) ***
 const palabrasProducto = ['modelo', 'talla', 'precio', 'vestido', 'falda', 'blusa', 'pantalón', 'pantalon', 'ropa', 'artículo', 'articulo', 'catalogo', 'stock']; 
 // Palabras críticas para escalamiento inmediato (Prioridad 0.0)
 const palabrasCriticas = ['devolución', 'devolucion', 'regresar', 'cambio', 'reembolso', 'reembolsar', 'queja', 'garantía', 'garantia']; 
@@ -265,18 +265,26 @@ async function procesarMensajes(body) {
             const textoLower = texto.toLowerCase();
             const textoSinTildes = stripAccents(textoLower); 
             
+            // --- Definición de Filtros de Pregunta (NUEVO)
+            const esPreguntaInformacional = textoSinTildes.includes('como se') || 
+                                            textoSinTildes.includes('como hago') || 
+                                            textoSinTildes.includes('como realizo') || 
+                                            textoSinTildes.includes('cual es la dinamica') ||
+                                            textoSinTildes.includes('como funciona');
+            
             // --- Definición de P0 (Venta Agresiva) para uso en la lógica
+            // Esta lista es solo para intención clara y NO incluye las frases de 'cómo'.
             const buscaPedidoClaro = textoSinTildes.includes('quiero hacer un pedido') || 
-                                     textoSinTildes.includes('quiero realizar un pedido') || // <-- AJUSTADO
-                                     textoSinTildes.includes('hacer un pedido') || // <-- AJUSTADO
-                                     textoSinTildes.includes('realizar un pedido') || // <-- AJUSTADO
+                                     textoSinTildes.includes('quiero realizar un pedido') || 
+                                     textoSinTildes.includes('hacer un pedido') || 
+                                     textoSinTildes.includes('realizar un pedido') || 
                                      textoSinTildes.includes('quiero comprar') ||
                                      textoSinTildes.includes('para comprar') ||
                                      textoSinTildes.includes('compraria') ||
                                      textoSinTildes.includes('dame el precio') ||
                                      textoSinTildes.includes('comprar') ||
-                                     textoSinTildes.includes('compra') || // <-- AJUSTADO
-                                     textoSinTildes.includes('pedido') || // <-- AJUSTADO
+                                     textoSinTildes.includes('compra') || 
+                                     textoSinTildes.includes('pedido') || 
                                      textoSinTildes.includes('cuanto') ||
                                      textoSinTildes.includes('pago') || 
                                      textoSinTildes.includes('pagar') || 
@@ -318,6 +326,7 @@ async function procesarMensajes(body) {
             
             // -------------------------------------------
             // 🚩 0. PRIORIDAD MÁXIMA: ESCALAMIENTO POR PEDIDO CLARO / CONTACTO / IMAGEN (VENTA AGRESIVA) 🚩
+            // *** AHORA EXCLUYE preguntas que empiecen con 'CÓMO' ***
             // -------------------------------------------
             
             const esImagenDePedido = (
@@ -325,7 +334,7 @@ async function procesarMensajes(body) {
                 (textoSinTildes.includes('pedido') || textoSinTildes.includes('orden') || textoSinTildes.includes('comprar') || textoSinTildes.includes('pago')) 
             );
 
-            if (esImagenDePedido || buscaPedidoClaro) {
+            if ((esImagenDePedido || buscaPedidoClaro) && !esPreguntaInformacional) {
                 console.log(`🚨 ESCALANDO a humano por intencion de COMPRA/CONTACTO/SEGMENTACIÓN CLARA (P0) de ${numero}.`);
                 await notificarSlack(numero, `INTENCIÓN DE COMPRA/CONTACTO/SEGMENTACIÓN: "${texto}"`);
                 await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
@@ -382,7 +391,8 @@ async function procesarMensajes(body) {
             }
             
             // -------------------------------------------
-            // 🚩 2. PRIORIDAD: MECÁNICA DE COMPRA / PAGO (RESPUESTA RÁPIDA - SOLO DATOS/VIDEO) 🚩
+            // 🚩 2. PRIORIDAD: MECÁNICA DE COMPRA / PAGO / DINÁMICA (RESPUESTA RÁPIDA - VIDEO/DATOS) 🚩
+            // *** AHORA CAPTURA las preguntas de 'CÓMO' que P0 excluyó ***
             // -------------------------------------------
             
             const buscaPagoDatos = textoSinTildes.includes('scotiabank') || 
@@ -392,22 +402,21 @@ async function procesarMensajes(body) {
                               textoSinTildes.includes('deposito') || 
                               textoSinTildes.includes('cuenta');
             
-            const buscaDinamica = textoSinTildes.includes('mecanica') || 
+            // Incluye el filtro de pregunta general y otras palabras de proceso
+            const buscaDinamica = esPreguntaInformacional ||
+                                   textoSinTildes.includes('mecanica') || 
                                    textoSinTildes.includes('dinamica') || 
-                                   textoSinTildes.includes('como se realiza') ||
-                                   textoSinTildes.includes('realizo una compra') ||
-                                   textoSinTildes.includes('como') || 
-                                   textoSinTildes.includes('proceso') || 
-                                   textoSinTildes.includes('realizo') ||
-                                   textoSinTildes.includes('hago') ||
-                                   textoSinTildes.includes('hacer un pedido');
+                                   textoSinTildes.includes('proceso');
 
                   
             if (buscaPagoDatos || buscaDinamica) { 
-                console.log(`[FLOW] Solicitud de Pago/Dinamica/Instrucciones de ${numero}.`);
+                console.log(`[FLOW] Solicitud de Pago/Dinamica/Instrucciones (P2) de ${numero}.`);
                 await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
                 
+                // Si la pregunta es solo de pago/datos, envía solo los datos.
                 if (buscaPagoDatos) await enviarTextoWasender(numero, mensajePago);
+                
+                // Si la pregunta es de dinámica/proceso, envía el video.
                 if (buscaDinamica) await enviarTextoWasender(numero, mensajeDinamicaVideo);
                 
                 if(!bienvenidaEnviada.has(numero)) {
@@ -419,7 +428,7 @@ async function procesarMensajes(body) {
             }
             
             // -------------------------------------------
-            // 🚩 1.5 PRIORIDAD: DESCARTE POR CIERRE O AGRADECIMIENTO (MOVIDO MÁS ARRIBA) 🚩
+            // 🚩 1.5 PRIORIDAD: DESCARTE POR CIERRE O AGRADECIMIENTO 🚩
             // -------------------------------------------
             
             const buscaCierre = textoSinTildes.includes('gracias') ||
