@@ -52,6 +52,10 @@ const mensajeEscalaCompleta =
 // 🚩 MENSAJE PARA ESCALAMIENTO SUAVE DE ENVÍO (PRIORIDAD 0.5) 🚩
 const mensajeEnvioEscalaSuave = 
     `¡Excelente! 📦 Con gusto te ayudo con los detalles de tu envío. Estoy conectando tu conversación con una vendedora experta para cotizar, confirmar cobertura y resolver cualquier duda. Te atenderán en breve. ¡Gracias! 😊`;
+
+// 🚩 MENSAJE PARA ESCALAMIENTO SUAVE DE PRODUCTO (PRIORIDAD 0.6) 🚩
+const mensajeProductoEscalaSuave = 
+    `¡Excelente! 👕 Con gusto te ayudo con los detalles del producto. Estoy conectando tu conversación con una vendedora experta para confirmar *stock* y *talla* o resolver cualquier duda que tengas. Te atenderán en breve. ¡Gracias! 😊`;
     
 // MENSAJE COMBINADO DE REENGANCHE Y DINÁMICA (P1.5) 
 const mensajeDinamicaVideo = 
@@ -315,7 +319,7 @@ async function procesarMensajes(body) {
                                      textoSinTildes.includes('para comprar') ||
                                      textoSinTildes.includes('compraria') ||
                                      textoSinTildes.includes('dame el precio') ||
-                                     // Temas de Venta Directa (ENVIO FUE REMOVIDO Y MOVIDO A P0.5)
+                                     // Temas de Venta Directa 
                                      textoSinTildes.includes('comprar') ||
                                      textoSinTildes.includes('cuanto') ||
                                      // Comandos y Solicitudes de Personal
@@ -349,7 +353,7 @@ async function procesarMensajes(body) {
                 await notificarSlack(numero, `INTENCIÓN DE COMPRA/CONTACTO/SEGMENTACIÓN: "${texto}"`);
                 await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
                 
-                // Usar el mensaje completo y estandarizado
+                // Usar el mensaje completo y estandarizado (INCLUYE DATOS DE PAGO)
                 await enviarTextoWasender(numero, mensajeEscalaCompleta);
                 
                 // Desbloquear la conversación
@@ -373,6 +377,28 @@ async function procesarMensajes(body) {
                 
                 // Usar el mensaje suave sin datos de pago
                 await enviarTextoWasender(numero, mensajeEnvioEscalaSuave);
+                
+                // Marcar como atendido si es nuevo
+                if(!bienvenidaEnviada.has(numero)) {
+                    bienvenidaEnviada.set(numero, true);
+                    await guardarMemoria();
+                }
+                conversacionEnEscalamiento.delete(numero); 
+                continue; 
+            }
+
+            // -------------------------------------------
+            // 🚩 0.6 PRIORIDAD: ESCALAMIENTO SUAVE POR PRODUCTO/TALLA (SIN DINERO) 🚩
+            // -------------------------------------------
+            const buscaProductoGenerico = palabrasProducto.some(keyword => textoSinTildes.includes(keyword));
+            
+            if (buscaProductoGenerico) {
+                console.log(`🚨 ESCALANDO SUAVE a humano por solicitud de PRODUCTO/TALLA/PRECIO (P0.6): ${numero}.`);
+                await notificarSlack(numero, `PREGUNTA SOBRE PRODUCTO/TALLA/PRECIO: "${texto}"`);
+                await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
+                
+                // Usar el nuevo mensaje suave sin datos de pago
+                await enviarTextoWasender(numero, mensajeProductoEscalaSuave);
                 
                 // Marcar como atendido si es nuevo
                 if(!bienvenidaEnviada.has(numero)) {
@@ -408,7 +434,7 @@ async function procesarMensajes(body) {
             }
             
             // -------------------------------------------
-            // 🚩 1. PRIORIDAD: SALUDO SIMPLE DE CLIENTE EXISTENTE (MENSAJE CORTO) 🚩
+            // 1. PRIORIDAD: SALUDO SIMPLE DE CLIENTE EXISTENTE (MENSAJE CORTO) 
             // -------------------------------------------
             
             const esSaludoSimple = textoSinTildes.includes('hola') || 
@@ -431,7 +457,7 @@ async function procesarMensajes(body) {
             // -------------------------------------------
             const buscaInformesGenerico = textoSinTildes.includes('informes') || 
                                           textoSinTildes.includes('informacion') ||
-                                          textoSinTildes.includes('info') || // <-- CORRECCIÓN AÑADIDA
+                                          textoSinTildes.includes('info') || 
                                           textoSinTildes.includes('tienes informacion');
 
             const esEspecifico = palabrasProducto.some(keyword => textoSinTildes.includes(keyword));
@@ -465,15 +491,16 @@ async function procesarMensajes(body) {
 
             
             // -------------------------------------------
-            // 🚩 2. PRIORIDAD: MECÁNICA DE COMPRA / PAGO (RESPUESTA RÁPIDA - NO ESCALA) 🚩
+            // 🚩 2. PRIORIDAD: MECÁNICA DE COMPRA / PAGO (RESPUESTA RÁPIDA - RESTRINGIDA) 🚩
             // -------------------------------------------
             
-            // LÓGICA DE PAGO (Con corrección de 'transfiero' / 'transferir')
-            const buscaPago = textoSinTildes.includes('pago') || textoSinTildes.includes('anticipo') || 
-                              textoSinTildes.includes('scotiabank') || textoSinTildes.includes('transferencia') ||
+            // LÓGICA DE PAGO (RESTRINGIDA: Solo palabras de transacción directa)
+            const buscaPago = textoSinTildes.includes('scotiabank') || 
+                              textoSinTildes.includes('transferencia') ||
                               textoSinTildes.includes('transfiero') || 
                               textoSinTildes.includes('transferir') || 
-                              textoSinTildes.includes('deposito') || textoSinTildes.includes('cuenta');
+                              textoSinTildes.includes('deposito') || 
+                              textoSinTildes.includes('cuenta'); // <-- Se eliminaron 'pago' y 'anticipo'
             
             // LÓGICA DE DINÁMICA/VIDEO - Captura preguntas de "cómo" o "proceso" 
             const buscaDinamica = textoSinTildes.includes('mecanica') || 
@@ -526,19 +553,22 @@ async function procesarMensajes(body) {
             if (respuestaIA.includes("COMANDO_ESCALAR") || respuestaIA.includes("COMANDO_ESCALAR_FALLO")) {
                 escalarAHumano = true;
             } else {
-                // 2. Refuerzo: Revisar la pregunta por Keywords (modelos, talla, etc.)
+                // 2. Refuerzo: Revisar la pregunta por Keywords (La P0.6 ahora toma la mayoría de keywords de producto)
+                // Si la IA no sugirió escalar, y ya pasamos por P0.6, es improbable que deba escalar aquí.
+                // Mantener el check de producto como respaldo final si la IA falla.
                 if (palabrasProducto.some(keyword => textoSinTildes.includes(keyword))) {
-                    console.log(`🚨 ESCALANDO FORZADO: La IA falló o no dio COMANDO, pero la pregunta (${texto}) contiene Keywords de producto/compra.`);
+                    console.log(`🚨 ESCALANDO FORZADO (P4 Fallback): La IA falló, pero la pregunta (${texto}) contiene Keywords de producto/compra.`);
                     escalarAHumano = true;
                 }
             }
             
             if (escalarAHumano) {
-                console.log(`🚨 ESCALANDO a humano por solicitud de producto/compra: ${numero}`);
+                console.log(`🚨 ESCALANDO a humano por solicitud de producto/compra (P4): ${numero}`);
                 await notificarSlack(numero, texto);
                 
-                // Usar el mensaje completo y estandarizado
-                respuesta = mensajeEscalaCompleta; 
+                // NOTA: Para el fallback de P4, la escalada debe ser con el mensaje de producto suave (P0.6)
+                // ya que es el mensaje menos agresivo para una escalada indeterminada.
+                respuesta = mensajeProductoEscalaSuave; 
                 
                 // Desbloquear la conversación
                 conversacionEnEscalamiento.delete(numero); 
