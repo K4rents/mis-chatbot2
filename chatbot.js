@@ -48,8 +48,12 @@ const mensajePago =
     
 const mensajeEscalaCompleta = 
     `¡Excelente! 🛒 Con gusto te ayudo a finalizar tu compra. Estoy conectando tu conversación con una vendedora experta para confirmar stock, tallas y resolver cualquier duda. Te atenderán en breve. ¡Gracias! 😊\n\n${mensajePago}`;
+
+// 🚩 MENSAJE PARA ESCALAMIENTO SUAVE DE ENVÍO (PRIORIDAD 0.5) 🚩
+const mensajeEnvioEscalaSuave = 
+    `¡Excelente! 📦 Con gusto te ayudo con los detalles de tu envío. Estoy conectando tu conversación con una vendedora experta para cotizar, confirmar cobertura y resolver cualquier duda. Te atenderán en breve. ¡Gracias! 😊`;
     
-// 🚩 MENSAJE COMBINADO DE REENGANCHE Y DINÁMICA (P1.5) 🚩
+// MENSAJE COMBINADO DE REENGANCHE Y DINÁMICA (P1.5) 
 const mensajeDinamicaVideo = 
     `Seguimos en línea para lo que necesites. 😊\n\n` +
     `Por favor, tómate solo 30 segundos para ver nuestro video de bienvenida, ahí te explico nuestra dinámica: ${VIDEO_BIENVENIDA_URL}`;
@@ -311,9 +315,8 @@ async function procesarMensajes(body) {
                                      textoSinTildes.includes('para comprar') ||
                                      textoSinTildes.includes('compraria') ||
                                      textoSinTildes.includes('dame el precio') ||
-                                     // Temas de Venta Directa
+                                     // Temas de Venta Directa (ENVIO FUE REMOVIDO Y MOVIDO A P0.5)
                                      textoSinTildes.includes('comprar') ||
-                                     textoSinTildes.includes('envio') || 
                                      textoSinTildes.includes('cuanto') ||
                                      // Comandos y Solicitudes de Personal
                                      textoSinTildes.includes('contactar a la persona') || 
@@ -355,6 +358,28 @@ async function procesarMensajes(body) {
                     bienvenidaEnviada.set(numero, true);
                     await guardarMemoria();
                 }
+                continue; 
+            }
+            
+            // -------------------------------------------
+            // 🚩 0.5 PRIORIDAD: ESCALAMIENTO SUAVE POR ENVÍO (SIN DINERO) 🚩
+            // -------------------------------------------
+            const buscaEnvio = textoSinTildes.includes('envio') || textoSinTildes.includes('estafeta') || textoSinTildes.includes('paqueteria');
+            
+            if (buscaEnvio) {
+                console.log(`🚨 ESCALANDO SUAVE a humano por solicitud de ENVÍO/LOGÍSTICA: ${numero}.`);
+                await notificarSlack(numero, `PREGUNTA SOBRE ENVÍO/LOGÍSTICA: "${texto}"`);
+                await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
+                
+                // Usar el mensaje suave sin datos de pago
+                await enviarTextoWasender(numero, mensajeEnvioEscalaSuave);
+                
+                // Marcar como atendido si es nuevo
+                if(!bienvenidaEnviada.has(numero)) {
+                    bienvenidaEnviada.set(numero, true);
+                    await guardarMemoria();
+                }
+                conversacionEnEscalamiento.delete(numero); 
                 continue; 
             }
             
@@ -406,7 +431,7 @@ async function procesarMensajes(body) {
             // -------------------------------------------
             const buscaInformesGenerico = textoSinTildes.includes('informes') || 
                                           textoSinTildes.includes('informacion') ||
-                                         textoSinTildes.includes('info') || // <--- ¡Añadido!
+                                          textoSinTildes.includes('info') || // <-- CORRECCIÓN AÑADIDA
                                           textoSinTildes.includes('tienes informacion');
 
             const esEspecifico = palabrasProducto.some(keyword => textoSinTildes.includes(keyword));
@@ -443,11 +468,11 @@ async function procesarMensajes(body) {
             // 🚩 2. PRIORIDAD: MECÁNICA DE COMPRA / PAGO (RESPUESTA RÁPIDA - NO ESCALA) 🚩
             // -------------------------------------------
             
-            // LÓGICA DE PAGO (CORREGIDA para incluir 'transfiero' / 'transferir')
+            // LÓGICA DE PAGO (Con corrección de 'transfiero' / 'transferir')
             const buscaPago = textoSinTildes.includes('pago') || textoSinTildes.includes('anticipo') || 
                               textoSinTildes.includes('scotiabank') || textoSinTildes.includes('transferencia') ||
-                              textoSinTildes.includes('transfiero') || // <-- ¡Corregido!
-                              textoSinTildes.includes('transferir') || // <-- ¡Corregido!
+                              textoSinTildes.includes('transfiero') || 
+                              textoSinTildes.includes('transferir') || 
                               textoSinTildes.includes('deposito') || textoSinTildes.includes('cuenta');
             
             // LÓGICA DE DINÁMICA/VIDEO - Captura preguntas de "cómo" o "proceso" 
@@ -561,4 +586,3 @@ app.listen(PORT, async () => {
     await cargarMemoria(); 
     console.log(`🤖 Chatbot activo en puerto ${PORT}.`);
 });
-
