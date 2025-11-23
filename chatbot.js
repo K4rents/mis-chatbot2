@@ -406,6 +406,7 @@ async function procesarMensajes(body) {
             // -------------------------------------------
             const buscaInformesGenerico = textoSinTildes.includes('informes') || 
                                           textoSinTildes.includes('informacion') ||
+                                         textoSinTildes.includes('info') || // <--- ¡Añadido!
                                           textoSinTildes.includes('tienes informacion');
 
             const esEspecifico = palabrasProducto.some(keyword => textoSinTildes.includes(keyword));
@@ -560,3 +561,4 @@ app.listen(PORT, async () => {
     await cargarMemoria(); 
     console.log(`🤖 Chatbot activo en puerto ${PORT}.`);
 });
+
