@@ -260,12 +260,3 @@ app.listen(PORT, () => console.log(`🤖 Bot en puerto ${PORT}`));
 
 
 
-
-
-
-
-
-
-
-
-ChatGPT puede comete
