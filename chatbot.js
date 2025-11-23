@@ -20,7 +20,6 @@ const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
 // 🚩 URLS DE MEDIOS DEFINITIVAS 🚩
 const VIDEO_BIENVENIDA_URL = 'https://drive.google.com/file/d/1W90iW4nJy7pqvraA--FJTT_HQQw3h4uJ/view'; 
-// const URL_MECANICA_COMPRA = 'https://drive.google.com/file/d/163YfomYIO9JojMvQGy7VUa0EkV1tXKLe/view?usp=sharing'; 
 
 const PAUSA_ENTRE_MENSAJES = 6000; // 6 segundos
 const MEMORY_FILE = 'welcome_memory.json'; 
@@ -271,7 +270,9 @@ async function procesarMensajes(body) {
                                      textoSinTildes.includes('dame el precio') ||
                                      textoSinTildes.includes('pedido') ||
                                      textoSinTildes.includes('orden') ||
-                                     textoSinTildes.includes('comprar'); 
+                                     textoSinTildes.includes('comprar') ||
+                                     textoSinTildes.includes('envio') || // <--- CORRECCIÓN 1: Agregar ENVÍO
+                                     textoSinTildes.includes('cuanto');  // <--- CORRECCIÓN 1: Agregar CUANTO (Costo/Precio)
 
             const esImagenDePedido = (
                 msgObj.message?.imageMessage && 
@@ -279,8 +280,8 @@ async function procesarMensajes(body) {
             );
 
             if (esImagenDePedido || buscaPedidoClaro) {
-                console.log(`🚨 ESCALANDO a humano por intencion de PEDIDO/COMPRA de ${numero}.`);
-                await notificarSlack(numero, `INTENCIÓN DE COMPRA CLARA/IMAGEN: "${texto}"`);
+                console.log(`🚨 ESCALANDO a humano por intencion de PEDIDO/COMPRA/ENVÍO de ${numero}.`);
+                await notificarSlack(numero, `INTENCIÓN DE COMPRA CLARA/IMAGEN/ENVÍO: "${texto}"`);
                 await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_MENSAJES));
                 
                 const respuestaEscala = `¡Excelente! 🛒 Con gusto te ayudo a finalizar tu compra. Estoy conectando tu conversación con una vendedora experta para confirmar stock, tallas y resolver cualquier duda. Te atenderán en breve. ¡Gracias! 😊\n\n${mensajePago}`;
@@ -319,9 +320,9 @@ async function procesarMensajes(body) {
             // -------------------------------------------
             // Esto evita que 'gracias' caiga en la Prioridad 2 (Video de dinámica).
             const buscaCierre = textoSinTildes.includes('gracias') ||
-                                textoSinTildes.includes('sale') ||
+                                // Eliminamos 'sale' para evitar confusión con "¿en cuanto sale?"
                                 textoSinTildes.includes('bye') ||
-                                textoSinTildes.includes('saludos');
+                                textoSinTildes.includes('saludos'); // <--- CORRECCIÓN 2: Eliminación de 'sale'
 
             if (buscaCierre && !conversacionEnEscalamiento.has(numero)) {
                 console.log(`[FLOW] Mensaje de cierre/agradecimiento detectado de ${numero}.`);
@@ -342,7 +343,7 @@ async function procesarMensajes(body) {
                               textoSinTildes.includes('scotiabank') || textoSinTildes.includes('transferencia') ||
                               textoSinTildes.includes('deposito') || textoSinTildes.includes('cuenta');
             
-            // LÓGICA DE DINÁMICA/VIDEO (SIN PALABRAS DE ESCALAMIENTO CLARO como 'pedido' u 'orden')
+            // LÓGICA DE DINÁMICA/VIDEO 
             const buscaDinamica = textoSinTildes.includes('mecanica') || 
                                    textoSinTildes.includes('dinamica') || 
                                    textoSinTildes.includes('como se realiza') ||
