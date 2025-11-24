@@ -129,8 +129,9 @@ const MENSAJE_GUADALAJARA = `¡Excelente! Sí, hacemos entregas personales en Gu
 
 const MENSAJE_DEVOLUCION = `Entiendo. Manejaremos tu solicitud con gusto. Te conectaremos con una vendedora para que te ayude personalmente con el proceso de devolución o cambio.`;
 
-// NUEVO: Mensaje para escalar consultas de negocio/consejo
 const MENSAJE_ASESORIA = `¡Esa es una excelente pregunta! Para darte la mejor asesoría estratégica y personalizada sobre negocio o recomendaciones, te conecto con una de nuestras vendedoras expertas.`;
+
+const MENSAJE_CONFIRMACION_ESCALA = `¡Perfecto! Ya te estamos conectando con una vendedora experta. En breve estará contigo para ayudarte con tu solicitud.`;
 
 
 // ---------------------- MEMORIA BÁSICA ----------------------
@@ -183,6 +184,16 @@ async function procesar(body) {
         if (buscaCortesia && clean.length <= 10) { // Limita a mensajes cortos
             await delay(PAUSA);
             await enviarTexto(numero, MENSAJE_CORTESIA);
+            continue;
+        }
+
+        // ---------------------- ✅ CONFIRMACIÓN DE ESCALAMIENTO (SIN DATOS DE PAGO) ----------------------
+        const buscaConfirmacion = clean.includes("si") || clean.includes("claro") || clean.includes("conecta") || clean.includes("adelante") || clean.includes("acepto"); 
+        
+        if (buscaConfirmacion && clean.length < 20) { // Solo mensajes cortos de confirmación
+            await notificarSlack(numero, `Cliente confirma escalamiento: ${texto}`);
+            await delay(PAUSA);
+            await enviarTexto(numero, MENSAJE_CONFIRMACION_ESCALA);
             continue;
         }
         
