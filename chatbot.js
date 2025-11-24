@@ -119,6 +119,15 @@ const MENSAJE_VIDEO = `¡Con gusto! Para que todo sea súper claro y rápido, mi
 
 const SALUDO_EXISTENTE = `¡Hola de nuevo! 😊 ¿En qué puedo ayudarte hoy? Aquí está la dinámica: ${VIDEO_BIENVENIDA_URL}`;
 
+const MENSAJE_ENVIOS = `¡Claro! 🚛 Manejamos envíos a toda la República Mexicana.
+
+*Para cotizar tu envío,* la vendedora te pedirá los siguientes datos:
+1. Código Postal (C.P.)
+2. Cantidad de prendas (aproximada)
+
+_El costo y el tiempo de entrega dependen de la paquetería seleccionada._`; 
+
+
 // ---------------------- MEMORIA BÁSICA ----------------------
 const memoriaBienvenida = new Set();
 const mensajesProcesados = new Set();
@@ -230,6 +239,20 @@ async function procesar(body) {
             await delay(PAUSA);
             await enviarTexto(numero, MENSAJE_PAGO);
             continue;
+        }
+        
+        // ---------------------- 🚛 ENVIOS (ALTA PRIORIDAD) ----------------------
+        // CUBRE: "envio", "costo", "paqueteria", "mandas", "republica"
+        const buscaEnvios =
+            clean.includes("envio") || clean.includes("paqueteria") ||
+            clean.includes("costo") || clean.includes("mandas") ||
+            clean.includes("republica") || clean.includes("mexico");
+
+        if (buscaEnvios) {
+            memoriaBienvenida.add(bienvenidaKey);
+            await delay(PAUSA);
+            await enviarTexto(numero, MENSAJE_ENVIOS);
+            continue; // Detiene el flujo para no seguir a la bienvenida o la IA
         }
 
         // ---------------------- CLIENTE NUEVO (BIENVENIDA COMPLETA) ----------------------
