@@ -172,28 +172,23 @@ async function procesar(body) {
         
         // ---------------------- 🎯 DINÁMICA (ALTA PRIORIDAD, NO ESCALA) ----------------------
         // CUBRE: Preguntas sobre el proceso (CÓMO HACERLO). Incluye variaciones y errores comunes.
-        const buscaDinamicaExacta = 
-            clean.includes("como se realiza una compra") || 
-            clean.includes("como hago una compra") || 
-            clean.includes("como realizo una compra") ||
-            clean.includes("como se realiza un pedido") || 
-            clean.includes("como hago un pedido") || 
-            clean.includes("como realizo un pedido") ||
-            clean.includes("como puedo ordenar");
+        
+        // Combinaciones que indican "CÓMO HACER" algo
+        const preguntaComoHacer = 
+            clean.includes("como") && 
+            (clean.includes("compra") || clean.includes("pedido") || clean.includes("hace") || clean.includes("realiza") || clean.includes("ordenar") || clean.includes("hago") || clean.includes("pedio"));
             
-        // Detección por palabras clave neutrales, errores de tipeo y semántica.
-        const buscaDinamicaKeywords = 
+        // Palabras clave únicas que siempre deben mandar el video
+        const palabrasClaveDinamica = 
             clean.includes("mecanica") || 
             clean.includes("dinamica") ||
-            clean.includes("proceso") ||
-            clean.includes("hago") || 
-            clean.includes("pedio") || 
-            clean.includes("ordenar"); 
+            clean.includes("proceso"); 
 
-        if (buscaDinamicaExacta || buscaDinamicaKeywords) {
+        // Si se cumple la combinación "COMO HACER" O si usa una palabra clave
+        if (preguntaComoHacer || palabrasClaveDinamica) {
             memoriaBienvenida.add(bienvenidaKey);
             await delay(PAUSA);
-            await enviarTexto(numero, MENSAJE_VIDEO);
+            await enviarTexto(numero, MENSAJE_VIDEO); // <-- ¡Manda el video!
             continue; 
         }
         
