@@ -133,8 +133,10 @@ const MENSAJE_ASESORIA = `¡Esa es una excelente pregunta! Para darte la mejor a
 
 const MENSAJE_CONFIRMACION_ESCALA = `¡Perfecto! Ya te estamos conectando con una vendedora experta. En breve estará contigo para ayudarte con tu solicitud.`;
 
-// NUEVO: Mensaje para imagen o documento sin texto
 const MENSAJE_IMAGEN_SIN_TEXTO = `¡Imagen/documento recibido! ✅ Se está escalando con una vendedora para su revisión. Te atenderemos en breve.`;
+
+// NUEVO: Mensaje para pagos atrasados
+const MENSAJE_PAGO_ATRASO = `Entendido. Hemos recibido tu notificación sobre el pago pendiente/atrasado. Te estamos conectando con una vendedora para revisar el estado de tu pedido.`;
 
 
 // ---------------------- MEMORIA BÁSICA ----------------------
@@ -173,7 +175,7 @@ async function procesar(body) {
         else if (m.message?.extendedTextMessage?.text) texto = m.message.extendedTextMessage.text;
         else if (m.message?.imageMessage?.caption) texto = m.message.imageMessage.caption;
 
-        if (!texto) continue; // Asegurarse de que si NO hay texto, el 'continue' aquí no se ejecute todavía.
+        if (!texto && !m.message?.imageMessage && !m.message?.documentMessage) continue; // Si no hay ni texto ni archivo, ignorar
 
         const clean = stripAccents(texto.toLowerCase());
 
@@ -328,6 +330,18 @@ ${MENSAJE_VIDEO}`
         if (esSaludo && memoriaBienvenida.has(bienvenidaKey)) {
             await delay(PAUSA);
             await enviarTexto(numero, SALUDO_EXISTENTE);
+            continue;
+        }
+
+        // ---------------------- ⏱️ PAGO ATRASO/PENDIENTE (ALTA PRIORIDAD, ESCALA) ----------------------
+        // Busca combinaciones que indican un problema o estado
+        const buscaAtraso = (clean.includes("pago") || clean.includes("deposito")) && 
+                            (clean.includes("atraso") || clean.includes("pendiente"));
+
+        if (buscaAtraso) {
+            await notificarSlack(numero, `🚨 *NOTIFICACIÓN DE PAGO ATRASADO/PENDIENTE*: ${texto}`);
+            await delay(PAUSA);
+            await enviarTexto(numero, MENSAJE_PAGO_ATRASO);
             continue;
         }
 
