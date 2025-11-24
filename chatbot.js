@@ -232,12 +232,13 @@ async function procesar(body) {
         }
 
         // ---------------------- 📒 CATÁLOGO (ESCALAMIENTO) ----------------------
-        const buscaCatalogo = clean.includes("catalogo") || clean.includes("catálogo"); // <-- Lógica ajustada
+        // Detección con y sin acento.
+        const buscaCatalogo = clean.includes("catalogo") || clean.includes("catálogo"); 
 
         if (buscaCatalogo) {
-            await notificarSlack(numero, `Solicitud de Catálogo: ${texto}`); // <-- ESCALA
+            await notificarSlack(numero, `Solicitud de Catálogo: ${texto}`); // ESCALA AL VENDEDOR
             await delay(PAUSA);
-            await enviarTexto(numero, MENSAJE_CATALOGO); // <-- RESPUESTA AMABLE SIN DATOS DE PAGO
+            await enviarTexto(numero, MENSAJE_CATALOGO); // RESPUESTA AMABLE SIN DATOS DE PAGO
             continue;
         }
 
@@ -251,7 +252,7 @@ async function procesar(body) {
         }
 
         // ---------------------- 💰 PAGO (PREGUNTA DIRECTA - NO ESCALA) ----------------------
-        // CUBRE: "numero de tarjeta", "cuenta", "como te transfiero". (Manda cuenta, NO ESCALA)
+        // Manda cuenta, NO ESCALA.
         const buscaPago =
             clean.includes("pago") || clean.includes("deposito") ||
             clean.includes("transferencia") || clean.includes("anticipo") ||
@@ -266,7 +267,7 @@ async function procesar(body) {
         }
         
         // ---------------------- 🚛 ENVIOS (ESCALAMIENTO, NO DATOS DE PAGO) ----------------------
-        // CUBRE: "envio", "paqueteria", "costo", etc.
+        // Escala al vendedor, NO da información ni datos de pago.
         const buscaEnvios =
             clean.includes("envio") || clean.includes("paqueteria") ||
             clean.includes("costo") || clean.includes("mandas") ||
@@ -276,7 +277,7 @@ async function procesar(body) {
             await notificarSlack(numero, `Consulta de Envíos: ${texto}`);
             await delay(PAUSA);
             await enviarTexto(numero, MENSAJE_ESCALA_ENVIO);
-            continue; // Detiene el flujo
+            continue; 
         }
 
         // ---------------------- CLIENTE NUEVO (BIENVENIDA COMPLETA) ----------------------
@@ -309,7 +310,7 @@ ${MENSAJE_VIDEO}`
         }
 
         // ---------------------- 🛒 LÓGICA IA / ESCALAMIENTO (INCLUYE INTENCIÓN DE COMPRA) ----------------------
-        // CUBRE: "quiero hacer una compra", "quiero comprar", "voy a comprar". (SÍ ESCALA Y MANDA CUENTA)
+        // ESCALA Y MANDA CUENTA.
         const intencionComprar =
             clean.includes("quiero comprar") ||
             clean.includes("voy a comprar") ||
