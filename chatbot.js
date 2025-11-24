@@ -127,8 +127,10 @@ const MENSAJE_ESCALA_ENVIO = `¡Entendido! Para darte la información más preci
 
 const MENSAJE_GUADALAJARA = `¡Excelente! Sí, hacemos entregas personales en Guadalajara. Un asesor se agendará contigo para coordinar dónde puedes pasar a recoger tu pedido.`; 
 
-// NUEVO MENSAJE DE DEVOLUCIÓN/CAMBIO (AMABLE)
 const MENSAJE_DEVOLUCION = `Entiendo. Manejaremos tu solicitud con gusto. Te conectaremos con una vendedora para que te ayude personalmente con el proceso de devolución o cambio.`;
+
+// NUEVO: Mensaje para escalar consultas de negocio/consejo
+const MENSAJE_ASESORIA = `¡Esa es una excelente pregunta! Para darte la mejor asesoría estratégica y personalizada sobre negocio o recomendaciones, te conecto con una de nuestras vendedoras expertas.`;
 
 
 // ---------------------- MEMORIA BÁSICA ----------------------
@@ -241,6 +243,16 @@ async function procesar(body) {
             await notificarSlack(numero, `Solicitud de Devolución/Cambio: ${texto}`);
             await delay(PAUSA);
             await enviarTexto(numero, MENSAJE_DEVOLUCION);
+            continue;
+        }
+
+        // ---------------------- 📈 CONSULTA DE NEGOCIO / CONSEJO (ESCALAMIENTO AMABLE) ----------------------
+        const buscaConsejo = clean.includes("consejo") || clean.includes("recomienda") || clean.includes("negocio") || clean.includes("opinion");
+
+        if (buscaConsejo) {
+            await notificarSlack(numero, `Consulta de Negocio/Asesoría: ${texto}`);
+            await delay(PAUSA);
+            await enviarTexto(numero, MENSAJE_ASESORIA);
             continue;
         }
 
