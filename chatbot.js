@@ -119,13 +119,14 @@ const MENSAJE_VIDEO = `¡Con gusto! Para que todo sea súper claro y rápido, mi
 
 const SALUDO_EXISTENTE = `¡Hola de nuevo! 😊 ¿En qué puedo ayudarte hoy? Aquí está la dinámica: ${VIDEO_BIENVENIDA_URL}`;
 
-const MENSAJE_ENVIOS = `¡Claro! 🚛 Manejamos envíos a toda la República Mexicana.
+// Mensajes Nuevos
+const MENSAJE_CORTESIA = `¡Seguimos en línea para lo que se ofrezca! 😊`;
 
-*Para cotizar tu envío,* la vendedora te pedirá los siguientes datos:
-1. Código Postal (C.P.)
-2. Cantidad de prendas (aproximada)
+const MENSAJE_CATALOGO = `¡Claro! 🛍️ Con gusto te conectamos con una vendedora. Te enviará nuestro catálogo actualizado para que puedas hacer tu pedido.`;
 
-_El costo y el tiempo de entrega dependen de la paquetería seleccionada._`; 
+const MENSAJE_ESCALA_ENVIO = `¡Entendido! Para darte la información más precisa sobre costos y tiempos de envío, te conecto con una vendedora experta. ¡Gracias por tu paciencia!`;
+
+const MENSAJE_GUADALAJARA = `¡Excelente! Sí, hacemos entregas personales en Guadalajara. Un asesor se agendará contigo para coordinar dónde puedes pasar a recoger tu pedido.`; 
 
 
 // ---------------------- MEMORIA BÁSICA ----------------------
@@ -169,10 +170,19 @@ async function procesar(body) {
         const clean = stripAccents(texto.toLowerCase());
 
         const bienvenidaKey = `welc_${numero}`;
+
+        // ---------------------- 🤝 CORTESÍA (ALTA PRIORIDAD, RESPUESTA FINAL) ----------------------
+        const buscaCortesia = 
+            clean.includes("ok") || clean.includes("va") || 
+            clean.includes("gracias") || clean.includes("vale");
+
+        if (buscaCortesia && clean.length <= 10) { // Limita a mensajes cortos
+            await delay(PAUSA);
+            await enviarTexto(numero, MENSAJE_CORTESIA);
+            continue;
+        }
         
         // ---------------------- 🎯 DINÁMICA (ALTA PRIORIDAD, NO ESCALA) ----------------------
-        // CUBRE: Preguntas sobre el proceso (CÓMO HACERLO). Incluye variaciones y errores comunes.
-        
         // Combinaciones que indican "CÓMO HACER" algo
         const preguntaComoHacer = 
             clean.includes("como") && 
@@ -188,7 +198,7 @@ async function procesar(body) {
         if (preguntaComoHacer || palabrasClaveDinamica) {
             memoriaBienvenida.add(bienvenidaKey);
             await delay(PAUSA);
-            await enviarTexto(numero, MENSAJE_VIDEO); // <-- ¡Manda el video!
+            await enviarTexto(numero, MENSAJE_VIDEO);
             continue; 
         }
         
@@ -201,19 +211,34 @@ async function procesar(body) {
         }
 
         // ---------------------- 📄 ESCALAMIENTO POR COMPROBANTE DE PAGO ----------------------
-        // Detecta si es una imagen/documento Y contiene palabras clave de comprobante/pago.
         const esImagenODocumento = m.message?.imageMessage || m.message?.documentMessage;
         const buscaComprobante = clean.includes("comprobante") || clean.includes("pago") || clean.includes("validacion") || clean.includes("transferencia");
 
         if (esImagenODocumento && buscaComprobante) {
             await notificarSlack(numero, `💸 *COMPROBANTE RECIBIDO* (${m.message?.documentMessage ? 'Documento' : 'Imagen'}): ${texto}`);
             await delay(PAUSA);
-            
-            // Mensaje amable de confirmación y escalamiento
             await enviarTexto(
                 numero,
                 `¡Comprobante recibido! ✅ En un momento una vendedora lo validará y continuará con tu pedido. ¡Gracias por tu compra!`
             );
+            continue;
+        }
+        
+        // ---------------------- 📍 GUADALAJARA (PICKUP LOCAL - ESCALA) ----------------------
+        if (clean.includes("guadalajara")) {
+            await notificarSlack(numero, `Pickup Guadalajara: ${texto}`);
+            await delay(PAUSA);
+            await enviarTexto(numero, MENSAJE_GUADALAJARA);
+            continue;
+        }
+
+        // ---------------------- 📒 CATÁLOGO (ESCALAMIENTO) ----------------------
+        const buscaCatalogo = clean.includes("catalogo") || clean.includes("catálogo");
+
+        if (buscaCatalogo) {
+            await notificarSlack(numero, `Solicitud de Catálogo: ${texto}`);
+            await delay(PAUSA);
+            await enviarTexto(numero, MENSAJE_CATALOGO);
             continue;
         }
 
@@ -226,8 +251,8 @@ async function procesar(body) {
             continue;
         }
 
-        // ---------------------- 💰 PAGO (PREGUNTA DIRECTA) ----------------------
-        // CUBRE: "numero de tarjeta", "cuenta", "como te transfiero". (NO ESCALA)
+        // ---------------------- 💰 PAGO (PREGUNTA DIRECTA - NO ESCALA) ----------------------
+        // CUBRE: "numero de tarjeta", "cuenta", "como te transfiero". (Manda cuenta, NO ESCALA)
         const buscaPago =
             clean.includes("pago") || clean.includes("deposito") ||
             clean.includes("transferencia") || clean.includes("anticipo") ||
@@ -241,18 +266,18 @@ async function procesar(body) {
             continue;
         }
         
-        // ---------------------- 🚛 ENVIOS (ALTA PRIORIDAD) ----------------------
-        // CUBRE: "envio", "costo", "paqueteria", "mandas", "republica"
+        // ---------------------- 🚛 ENVIOS (ESCALAMIENTO, NO DATOS DE PAGO) ----------------------
+        // CUBRE: "envio", "paqueteria", "costo", etc.
         const buscaEnvios =
             clean.includes("envio") || clean.includes("paqueteria") ||
             clean.includes("costo") || clean.includes("mandas") ||
             clean.includes("republica") || clean.includes("mexico");
 
         if (buscaEnvios) {
-            memoriaBienvenida.add(bienvenidaKey);
+            await notificarSlack(numero, `Consulta de Envíos: ${texto}`);
             await delay(PAUSA);
-            await enviarTexto(numero, MENSAJE_ENVIOS);
-            continue; // Detiene el flujo para no seguir a la bienvenida o la IA
+            await enviarTexto(numero, MENSAJE_ESCALA_ENVIO);
+            continue; // Detiene el flujo
         }
 
         // ---------------------- CLIENTE NUEVO (BIENVENIDA COMPLETA) ----------------------
