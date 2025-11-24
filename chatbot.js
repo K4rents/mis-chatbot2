@@ -127,6 +127,9 @@ const MENSAJE_ESCALA_ENVIO = `¡Entendido! Para darte la información más preci
 
 const MENSAJE_GUADALAJARA = `¡Excelente! Sí, hacemos entregas personales en Guadalajara. Un asesor se agendará contigo para coordinar dónde puedes pasar a recoger tu pedido.`; 
 
+// NUEVO MENSAJE DE DEVOLUCIÓN/CAMBIO (AMABLE)
+const MENSAJE_DEVOLUCION = `Entiendo. Manejaremos tu solicitud con gusto. Te conectaremos con una vendedora para que te ayude personalmente con el proceso de devolución o cambio.`;
+
 
 // ---------------------- MEMORIA BÁSICA ----------------------
 const memoriaBienvenida = new Set();
@@ -230,9 +233,18 @@ async function procesar(body) {
             await enviarTexto(numero, MENSAJE_GUADALAJARA);
             continue;
         }
+        
+        // ---------------------- 🔄 DEVOLUCIÓN / CAMBIO (ESCALAMIENTO CON RESPUESTA AMABLE) ----------------------
+        const buscaDevolucion = clean.includes("devolucion") || clean.includes("cambio") || clean.includes("regresar");
+
+        if (buscaDevolucion) {
+            await notificarSlack(numero, `Solicitud de Devolución/Cambio: ${texto}`);
+            await delay(PAUSA);
+            await enviarTexto(numero, MENSAJE_DEVOLUCION);
+            continue;
+        }
 
         // ---------------------- ❓ INFO / INFORMACION (ALTA PRIORIDAD) ----------------------
-        // N U E V O: Manda la bienvenida completa ante "info" o errores de "informacion"
         const buscaInfo = clean.includes("info") || clean.includes("informacion") || clean.includes("infrmacion");
 
         if (buscaInfo) {
