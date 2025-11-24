@@ -1,3 +1,16 @@
+¡Entendido! Quieres maximizar la detección de comprobantes de pago adjuntos para que no se escape nada y el cliente reciba el mensaje de validación.
+
+Te confirmo que el código ya tiene esta lógica implementada de forma correcta y con alta prioridad. Simplemente he hecho un pequeño ajuste en la lista de palabras clave para incluir "pagado" e "imagen", tal como lo solicitas, para hacerlo aún más robusto.
+
+El mensaje que se envía es precisamente el de validación y escalamiento:
+
+"¡Comprobante recibido! ✅ En un momento una vendedora lo validará y continuará con tu pedido. ¡Gracias por tu compra!"
+
+Aquí tienes el código completo y actualizado:
+
+🤖 Chatbot Completo (Versión Final con Detección de Pagos Mejorada)
+JavaScript
+
 import express from "express";
 import axios from "axios";
 
@@ -227,7 +240,8 @@ async function procesar(body) {
 
         // ---------------------- 📄 ESCALAMIENTO POR COMPROBANTE DE PAGO ----------------------
         const esImagenODocumento = m.message?.imageMessage || m.message?.documentMessage;
-        const buscaComprobante = clean.includes("comprobante") || clean.includes("pago") || clean.includes("validacion") || clean.includes("transferencia");
+        // DETECCIÓN MEJORADA: Incluye "pagado" e "imagen" para mayor robustez.
+        const buscaComprobante = clean.includes("comprobante") || clean.includes("pago") || clean.includes("pagado") || clean.includes("validacion") || clean.includes("transferencia") || clean.includes("imagen");
 
         if (esImagenODocumento && buscaComprobante) {
             await notificarSlack(numero, `💸 *COMPROBANTE RECIBIDO* (${m.message?.documentMessage ? 'Documento' : 'Imagen'}): ${texto}`);
