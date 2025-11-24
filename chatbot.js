@@ -171,19 +171,24 @@ async function procesar(body) {
         const bienvenidaKey = `welc_${numero}`;
         
         // ---------------------- 🎯 DINÁMICA (ALTA PRIORIDAD, NO ESCALA) ----------------------
-        // CUBRE: Preguntas sobre el proceso (CÓMO HACERLO). 
+        // CUBRE: Preguntas sobre el proceso (CÓMO HACERLO). Incluye variaciones y errores comunes.
         const buscaDinamicaExacta = 
             clean.includes("como se realiza una compra") || 
             clean.includes("como hago una compra") || 
             clean.includes("como realizo una compra") ||
-            clean.includes("como hago un pedido") ||
-            clean.includes("como realizo un pedido");
+            clean.includes("como se realiza un pedido") || 
+            clean.includes("como hago un pedido") || 
+            clean.includes("como realizo un pedido") ||
+            clean.includes("como puedo ordenar");
             
-        // Detección por palabras clave neutrales (PROCESO / MECANICA)
+        // Detección por palabras clave neutrales, errores de tipeo y semántica.
         const buscaDinamicaKeywords = 
             clean.includes("mecanica") || 
             clean.includes("dinamica") ||
-            clean.includes("proceso"); 
+            clean.includes("proceso") ||
+            clean.includes("hago") || 
+            clean.includes("pedio") || 
+            clean.includes("ordenar"); 
 
         if (buscaDinamicaExacta || buscaDinamicaKeywords) {
             memoriaBienvenida.add(bienvenidaKey);
