@@ -157,7 +157,7 @@ async function procesar(body) {
         const bienvenidaKey = `welc_${numero}`;
         
         // ---------------------- 🎯 DINÁMICA (ALTA PRIORIDAD, NO ESCALA) ----------------------
-        // CUBRE: Preguntas sobre el proceso. Excluye intenciones activas como "quiero" o "voy a".
+        // CUBRE: Preguntas sobre el proceso (CÓMO HACERLO). Excluye intenciones activas (QUIERO HACERLO).
         const buscaDinamicaExacta = 
             clean.includes("como se realiza una compra") || 
             clean.includes("como hago una compra") || 
@@ -169,7 +169,7 @@ async function procesar(body) {
         const buscaDinamicaKeywords = 
             clean.includes("mecanica") || 
             clean.includes("dinamica") ||
-            clean.includes("proceso"); // <--- MANTENER ESTAS PALABRAS CLAVE AQUÍ
+            clean.includes("proceso"); 
 
         if (buscaDinamicaExacta || buscaDinamicaKeywords) {
             memoriaBienvenida.add(bienvenidaKey);
@@ -178,11 +178,28 @@ async function procesar(body) {
             continue; 
         }
         
-        // ---------------------- ESCALAMIENTO AUTOMÁTICO POR IMAGEN ----------------------
+        // ---------------------- ESCALAMIENTO AUTOMÁTICO POR IMAGEN (con texto de pedido) ----------------------
         if (m.message?.imageMessage && (clean.includes("pedido") || clean.includes("orden") || clean.includes("comprar"))) {
             await notificarSlack(numero, "Imagen/Pedido");
             await delay(PAUSA);
             await enviarTexto(numero, `¡Recibido! 📦 Conectando con una vendedora para confirmar stock, tallas y pago.\n\n${MENSAJE_PAGO}`);
+            continue;
+        }
+
+        // ---------------------- 📄 ESCALAMIENTO POR COMPROBANTE DE PAGO ----------------------
+        // Detecta si es una imagen/documento Y contiene palabras clave de comprobante/pago.
+        const esImagenODocumento = m.message?.imageMessage || m.message?.documentMessage;
+        const buscaComprobante = clean.includes("comprobante") || clean.includes("pago") || clean.includes("validacion") || clean.includes("transferencia");
+
+        if (esImagenODocumento && buscaComprobante) {
+            await notificarSlack(numero, `💸 *COMPROBANTE RECIBIDO* (${m.message?.documentMessage ? 'Documento' : 'Imagen'}): ${texto}`);
+            await delay(PAUSA);
+            
+            // Mensaje amable de confirmación y escalamiento
+            await enviarTexto(
+                numero,
+                `¡Comprobante recibido! ✅ En un momento una vendedora lo validará y continuará con tu pedido. ¡Gracias por tu compra!`
+            );
             continue;
         }
 
@@ -246,12 +263,11 @@ ${MENSAJE_VIDEO}`
             clean.includes("voy a comprar") ||
             clean.includes("quiero hacer una compra") ||
             clean.includes("quiero realizar una compra") ||
-            clean.includes("comprar") || // <--- Muevo estas a la zona de ESCALAMIENTO
+            clean.includes("comprar") || 
             clean.includes("pedido") ||
             clean.includes("orden") ||
             clean.includes("hacer") ||
             clean.includes("realizo");
-
 
         const respIA = await obtenerRespuestaIA(texto, "Asistente de ventas Karen's Clothes.");
 
