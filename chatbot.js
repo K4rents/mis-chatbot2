@@ -1,16 +1,3 @@
-¡Entendido! Quieres maximizar la detección de comprobantes de pago adjuntos para que no se escape nada y el cliente reciba el mensaje de validación.
-
-Te confirmo que el código ya tiene esta lógica implementada de forma correcta y con alta prioridad. Simplemente he hecho un pequeño ajuste en la lista de palabras clave para incluir "pagado" e "imagen", tal como lo solicitas, para hacerlo aún más robusto.
-
-El mensaje que se envía es precisamente el de validación y escalamiento:
-
-"¡Comprobante recibido! ✅ En un momento una vendedora lo validará y continuará con tu pedido. ¡Gracias por tu compra!"
-
-Aquí tienes el código completo y actualizado:
-
-🤖 Chatbot Completo (Versión Final con Detección de Pagos Mejorada)
-JavaScript
-
 import express from "express";
 import axios from "axios";
 
@@ -433,3 +420,4 @@ app.post("/webhook", (req, res) => {
 
 // ---------------------- RUN ----------------------
 app.listen(PORT, () => console.log(`🤖 Bot en puerto ${PORT}`));
+
