@@ -135,7 +135,6 @@ const MENSAJE_CONFIRMACION_ESCALA = `¡Perfecto! Ya te estamos conectando con un
 
 const MENSAJE_IMAGEN_SIN_TEXTO = `¡Imagen/documento recibido! ✅ Se está escalando con una vendedora para su revisión. Te atenderemos en breve.`;
 
-// NUEVO: Mensaje para pagos atrasados
 const MENSAJE_PAGO_ATRASO = `Entendido. Hemos recibido tu notificación sobre el pago pendiente/atrasado. Te estamos conectando con una vendedora para revisar el estado de tu pedido.`;
 
 
@@ -331,6 +330,18 @@ ${MENSAJE_VIDEO}`
             await delay(PAUSA);
             await enviarTexto(numero, SALUDO_EXISTENTE);
             continue;
+        }
+
+        // ---------------------- 🚫 IGNORAR DATOS BANCARIOS REPETIDOS ----------------------
+        // Si el cliente copia y pega los datos bancarios, se ignora para evitar ciclos.
+        const contieneDatosBancarios = 
+            clean.includes("jose de jesus conchas rodriguez") && 
+            clean.includes("scotiabank") && 
+            clean.includes("044320256058512878");
+
+        if (contieneDatosBancarios) {
+            console.log(`⛔ Mensaje ignorado: Cliente repitió datos bancarios.`);
+            continue; 
         }
 
         // ---------------------- ⏱️ PAGO ATRASO/PENDIENTE (ALTA PRIORIDAD, ESCALA) ----------------------
