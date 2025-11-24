@@ -119,7 +119,6 @@ const MENSAJE_VIDEO = `¡Con gusto! Para que todo sea súper claro y rápido, mi
 
 const SALUDO_EXISTENTE = `¡Hola de nuevo! 😊 ¿En qué puedo ayudarte hoy? Aquí está la dinámica: ${VIDEO_BIENVENIDA_URL}`;
 
-// Mensajes Nuevos
 const MENSAJE_CORTESIA = `¡Seguimos en línea para lo que se ofrezca! 😊`;
 
 const MENSAJE_CATALOGO = `¡Claro! 🛍️ Con gusto te conectamos con una vendedora. Te enviará nuestro catálogo actualizado para que puedas hacer tu pedido.`;
@@ -233,12 +232,12 @@ async function procesar(body) {
         }
 
         // ---------------------- 📒 CATÁLOGO (ESCALAMIENTO) ----------------------
-        const buscaCatalogo = clean.includes("catalogo") || clean.includes("catálogo");
+        const buscaCatalogo = clean.includes("catalogo") || clean.includes("catálogo"); // <-- Lógica ajustada
 
         if (buscaCatalogo) {
-            await notificarSlack(numero, `Solicitud de Catálogo: ${texto}`);
+            await notificarSlack(numero, `Solicitud de Catálogo: ${texto}`); // <-- ESCALA
             await delay(PAUSA);
-            await enviarTexto(numero, MENSAJE_CATALOGO);
+            await enviarTexto(numero, MENSAJE_CATALOGO); // <-- RESPUESTA AMABLE SIN DATOS DE PAGO
             continue;
         }
 
