@@ -54,9 +54,12 @@ async function enviarImagen(numero, url, caption = "") {
     }
 }
 
-// ---------------------- SLACK ----------------------
+// ---------------------- SLACK (MEJORADO PARA DIAGNÓSTICO) ----------------------
 async function notificarSlack(numero, mensaje) {
-    if (!SLACK_WEBHOOK_URL) return;
+    if (!SLACK_WEBHOOK_URL) {
+        console.error("❌ ERROR SLACK: SLACK_WEBHOOK_URL no está definido. No se puede enviar la alerta.");
+        return;
+    }
 
     const WA = `https://wa.me/${numero}`;
     const payload = {
@@ -67,8 +70,10 @@ async function notificarSlack(numero, mensaje) {
 
     try {
         await axios.post(SLACK_WEBHOOK_URL, payload);
+        console.log(`✅ SLACK: Alerta enviada con éxito para el número ${numero}`);
     } catch (e) {
-        console.error("❌ Slack:", e.message);
+        // Muestra el error real que impide el envío
+        console.error("❌ ERROR SLACK POST: Falló el envío del webhook.", e.response?.data || e.message);
     }
 }
 
@@ -157,7 +162,7 @@ async function procesar(body) {
         const bienvenidaKey = `welc_${numero}`;
         
         // ---------------------- 🎯 DINÁMICA (ALTA PRIORIDAD, NO ESCALA) ----------------------
-        // CUBRE: Preguntas sobre el proceso (CÓMO HACERLO). Excluye intenciones activas (QUIERO HACERLO).
+        // CUBRE: Preguntas sobre el proceso (CÓMO HACERLO). 
         const buscaDinamicaExacta = 
             clean.includes("como se realiza una compra") || 
             clean.includes("como hago una compra") || 
