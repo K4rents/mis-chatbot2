@@ -402,7 +402,7 @@ ${MENSAJE_VIDEO}`
             await delay(PAUSA);
             await enviarTexto(
                 numero,
-                `¡Hola, bienvenida a *Karen's Clothes*! Soy **Paola** y estoy encantada de atenderte. ✨
+                `¡Hola, bienvenida a *Karen's Clothes*! Soy **Ana** y estoy encantada de atenderte. ✨
 
 ¿Tienes tienda o te manejas sobre pedido?
 
@@ -467,3 +467,4 @@ app.post("/webhook", (req, res) => {
 
 // ---------------------- RUN ----------------------
 app.listen(PORT, () => console.log(`🤖 Bot en puerto ${PORT}`));
+
