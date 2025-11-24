@@ -356,6 +356,15 @@ ${MENSAJE_VIDEO}`
             continue;
         }
 
+        // ---------------------- 🚫 IGNORAR TEXTO COMPROBANTE SIN IMAGEN/CONTEXTO (NUEVO) ----------------------
+        // Ignora el texto simple 'comprobante' para evitar que caiga en la regla de 'PAGO' genérica.
+        const soloTextoComprobante = clean.includes("comprobante") && clean.length < 30;
+
+        if (soloTextoComprobante) {
+            console.log(`⛔ Mensaje ignorado: Solo texto 'Comprobante', ya se escaló con imagen o es redundante.`);
+            continue;
+        }
+        
         // ---------------------- 💰 PAGO (PREGUNTA DIRECTA - NO ESCALA) ----------------------
         // Manda cuenta, NO ESCALA.
         const buscaPago =
