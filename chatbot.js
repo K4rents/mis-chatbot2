@@ -156,8 +156,8 @@ async function procesar(body) {
 
         const bienvenidaKey = `welc_${numero}`;
         
-        // ---------------------- 🎯 DINÁMICA (ALTA PRIORIDAD, Detección Infalible) ----------------------
-        // CUBRE: "como se realiza una compra" y similares (NO ESCALA)
+        // ---------------------- 🎯 DINÁMICA (ALTA PRIORIDAD, NO ESCALA) ----------------------
+        // CUBRE: Preguntas sobre el proceso. Excluye intenciones activas como "quiero" o "voy a".
         const buscaDinamicaExacta = 
             clean.includes("como se realiza una compra") || 
             clean.includes("como hago una compra") || 
@@ -165,17 +165,11 @@ async function procesar(body) {
             clean.includes("como hago un pedido") ||
             clean.includes("como realizo un pedido");
             
-        // Detección por palabras clave (fallback)
+        // Detección por palabras clave neutrales (PROCESO / MECANICA)
         const buscaDinamicaKeywords = 
             clean.includes("mecanica") || 
             clean.includes("dinamica") ||
-            clean.includes("comprar") || 
-            clean.includes("pedido") || 
-            clean.includes("orden") || 
-            clean.includes("hacer") || 
-            clean.includes("realizo") || 
-            clean.includes("proceso");
-
+            clean.includes("proceso"); // <--- MANTENER ESTAS PALABRAS CLAVE AQUÍ
 
         if (buscaDinamicaExacta || buscaDinamicaKeywords) {
             memoriaBienvenida.add(bienvenidaKey);
@@ -251,7 +245,13 @@ ${MENSAJE_VIDEO}`
             clean.includes("quiero comprar") ||
             clean.includes("voy a comprar") ||
             clean.includes("quiero hacer una compra") ||
-            clean.includes("quiero realizar una compra");
+            clean.includes("quiero realizar una compra") ||
+            clean.includes("comprar") || // <--- Muevo estas a la zona de ESCALAMIENTO
+            clean.includes("pedido") ||
+            clean.includes("orden") ||
+            clean.includes("hacer") ||
+            clean.includes("realizo");
+
 
         const respIA = await obtenerRespuestaIA(texto, "Asistente de ventas Karen's Clothes.");
 
