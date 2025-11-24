@@ -100,8 +100,7 @@ async function obtenerRespuestaIA(mensaje, contexto) {
 
 // ---------------------- MENSAJES --------------------------------
 
-const MENSAJE_PAGO = `*¡ANTICIPO O PAGO RÁPIDO!* 💰
-Si deseas asegurar tu pedido o hacer un anticipo, puedes usar nuestros datos de Scotiabank:
+const MENSAJE_PAGO = `¡Hola! Con gusto te comparto los datos. Para realizar tu *ANTICIPO O PAGO RÁPIDO* 💰 puedes usar nuestros datos de Scotiabank:
 
 *👤 BENEFICIARIO:* José de Jesús Conchas Rodriguez
 *🏦 BANCO:* Scotiabank
@@ -158,8 +157,9 @@ async function procesar(body) {
         const bienvenidaKey = `welc_${numero}`;
         
         // ---------------------- 🎯 DINÁMICA (ALTA PRIORIDAD, Detección Infalible) ----------------------
-        // 1. Detección por Frases Clave (la forma más segura y específica)
+        // 1. Detección por Frases Clave (para asegurar "como se realiza una compra" y similares)
         const buscaDinamicaExacta = 
+            clean.includes("como se realiza una compra") || // <--- ¡Aseguramos esta frase!
             clean.includes("como hago una compra") || 
             clean.includes("como realizo una compra") ||
             clean.includes("como hago un pedido") ||
@@ -201,11 +201,13 @@ async function procesar(body) {
             continue;
         }
 
-        // ---------------------- PAGO ----------------------
+        // ---------------------- 💰 PAGO (PREGUNTA DIRECTA) ----------------------
+        // CUBRE: "numero de tarjeta", "cuenta", "transferir". NO ESCALA.
         const buscaPago =
             clean.includes("pago") || clean.includes("deposito") ||
             clean.includes("transferencia") || clean.includes("anticipo") ||
-            clean.includes("cuenta") || clean.includes("scotia");
+            clean.includes("cuenta") || clean.includes("scotia") ||
+            clean.includes("tarjeta") || clean.includes("transfiero"); // <--- Añadido
 
         if (buscaPago) {
             memoriaBienvenida.add(bienvenidaKey);
@@ -243,16 +245,25 @@ ${MENSAJE_VIDEO}`
             continue;
         }
 
-        // ---------------------- LÓGICA IA / ESCALAMIENTO ----------------------
+        // ---------------------- 🛒 LÓGICA IA / ESCALAMIENTO (INCLUYE INTENCIÓN DE COMPRA) ----------------------
+        // CUBRE: "quiero hacer una compra", "quiero comprar", "voy a comprar". ESTO SÍ ESCALA.
+        const intencionComprar =
+            clean.includes("quiero comprar") ||
+            clean.includes("voy a comprar") ||
+            clean.includes("quiero hacer una compra") ||
+            clean.includes("quiero realizar una compra");
+
         const respIA = await obtenerRespuestaIA(texto, "Asistente de ventas Karen's Clothes.");
 
-        if (respIA.includes("COMANDO_ESCALAR")) {
+        // Si la IA dice escalar O si detectamos intención directa de comprar, escalamos.
+        if (respIA.includes("COMANDO_ESCALAR") || intencionComprar) {
             await notificarSlack(numero, texto);
             await delay(PAUSA);
 
+            // Mensaje combinado para el cliente: conectamos y damos los datos de pago
             await enviarTexto(
                 numero,
-                `¡Claro! Te conecto con una vendedora experta para ayudarte con tallas, stock y método de pago.`
+                `¡Excelente! Tu pedido está en buenas manos. Te conecto con una vendedora experta para confirmar stock y tallas.\n\n${MENSAJE_PAGO}`
             );
             continue;
         }
