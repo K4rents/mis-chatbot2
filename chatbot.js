@@ -231,9 +231,40 @@ async function procesar(body) {
             continue;
         }
 
+        // ---------------------- ❓ INFO / INFORMACION (ALTA PRIORIDAD) ----------------------
+        // N U E V O: Manda la bienvenida completa ante "info" o errores de "informacion"
+        const buscaInfo = clean.includes("info") || clean.includes("informacion") || clean.includes("infrmacion");
+
+        if (buscaInfo) {
+            memoriaBienvenida.add(bienvenidaKey);
+
+            await delay(PAUSA);
+            await enviarTexto(
+                numero,
+                `¡Hola, bienvenida a *Karen's Clothes*! Soy **Paola** y estoy encantada de atenderte. ✨
+
+¿Tienes tienda o te manejas sobre pedido?
+
+Página oficial: https://www.facebook.com/share/19928ADEfk/
+
+${MENSAJE_VIDEO}`
+            );
+
+            await delay(PAUSA);
+
+            await enviarTexto(
+                numero,
+                `¡Realiza tu **primera compra** y llévate un cupón! 🎁
+
+1.- Compra mínima *$4000*: precio de corrida (10 pesos menos por prenda)
+2.- Compra mínima *$6000*: precio de paquete (20 pesos menos por prenda)`
+            );
+            continue;
+        }
+
         // ---------------------- 📒 CATÁLOGO (ESCALAMIENTO) ----------------------
-        // Detección con y sin acento.
-        const buscaCatalogo = clean.includes("catalogo") || clean.includes("catálogo"); 
+        // Detección: Base "catalogo" (con o sin acento) y el error "catalago".
+        const buscaCatalogo = clean.includes("catalogo") || clean.includes("catalago"); 
 
         if (buscaCatalogo) {
             await notificarSlack(numero, `Solicitud de Catálogo: ${texto}`); // ESCALA AL VENDEDOR
@@ -281,6 +312,7 @@ async function procesar(body) {
         }
 
         // ---------------------- CLIENTE NUEVO (BIENVENIDA COMPLETA) ----------------------
+        // Este bloque ahora solo se activa si no se ha enviado el mensaje AÚN
         if (!memoriaBienvenida.has(bienvenidaKey)) {
             memoriaBienvenida.add(bienvenidaKey);
 
