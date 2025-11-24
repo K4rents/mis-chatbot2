@@ -133,6 +133,9 @@ const MENSAJE_ASESORIA = `¡Esa es una excelente pregunta! Para darte la mejor a
 
 const MENSAJE_CONFIRMACION_ESCALA = `¡Perfecto! Ya te estamos conectando con una vendedora experta. En breve estará contigo para ayudarte con tu solicitud.`;
 
+// NUEVO: Mensaje para imagen o documento sin texto
+const MENSAJE_IMAGEN_SIN_TEXTO = `¡Imagen/documento recibido! ✅ Se está escalando con una vendedora para su revisión. Te atenderemos en breve.`;
+
 
 // ---------------------- MEMORIA BÁSICA ----------------------
 const memoriaBienvenida = new Set();
@@ -170,7 +173,7 @@ async function procesar(body) {
         else if (m.message?.extendedTextMessage?.text) texto = m.message.extendedTextMessage.text;
         else if (m.message?.imageMessage?.caption) texto = m.message.imageMessage.caption;
 
-        if (!texto) continue;
+        if (!texto) continue; // Asegurarse de que si NO hay texto, el 'continue' aquí no se ejecute todavía.
 
         const clean = stripAccents(texto.toLowerCase());
 
@@ -225,9 +228,8 @@ async function procesar(body) {
             continue;
         }
 
-        // ---------------------- 📄 ESCALAMIENTO POR COMPROBANTE DE PAGO ----------------------
+        // ---------------------- 📄 ESCALAMIENTO POR COMPROBANTE DE PAGO (IMAGEN CON TEXTO CLAVE) ----------------------
         const esImagenODocumento = m.message?.imageMessage || m.message?.documentMessage;
-        // DETECCIÓN MEJORADA: Incluye "pagado" e "imagen" para mayor robustez.
         const buscaComprobante = clean.includes("comprobante") || clean.includes("pago") || clean.includes("pagado") || clean.includes("validacion") || clean.includes("transferencia") || clean.includes("imagen");
 
         if (esImagenODocumento && buscaComprobante) {
@@ -237,6 +239,17 @@ async function procesar(body) {
                 numero,
                 `¡Comprobante recibido! ✅ En un momento una vendedora lo validará y continuará con tu pedido. ¡Gracias por tu compra!`
             );
+            continue;
+        }
+
+        // ---------------------- 🖼️ ESCALAMIENTO POR IMAGEN SIN TEXTO ----------------------
+        // Detecta imágenes o documentos que vienen sin texto (caption vacío)
+        const soloImagenSinTexto = (m.message?.imageMessage || m.message?.documentMessage) && texto.length === 0;
+
+        if (soloImagenSinTexto) {
+            await notificarSlack(numero, `🚨 *IMAGEN SIN TEXTO/VALIDACIÓN*: Se detectó una imagen o documento sin descripción.`);
+            await delay(PAUSA);
+            await enviarTexto(numero, MENSAJE_IMAGEN_SIN_TEXTO);
             continue;
         }
         
@@ -420,4 +433,3 @@ app.post("/webhook", (req, res) => {
 
 // ---------------------- RUN ----------------------
 app.listen(PORT, () => console.log(`🤖 Bot en puerto ${PORT}`));
-
